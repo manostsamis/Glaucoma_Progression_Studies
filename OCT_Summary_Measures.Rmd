@@ -1,0 +1,2122 @@
+---
+title: "Evaluation of OCT Summary Measures for Detection of Glaucoma Progression"
+author: "Emmanouil (Manos) Tsamis"
+date: "1/26/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# pander::panderOptions('round', 2)
+# pander::panderOptions('keep.trailing.zeros', TRUE)
+```
+
+# Purpose
+To evaluate the performance of conventional and novel OCT summary measures on detecting progression of glaucomatous damage
+
+```{r libraries, include = FALSE}
+library(tidyverse)
+library(octr)
+library(zeallot)
+```
+
+
+```{r import_data, include = FALSE}
+all_onh <- readr::read_csv("all_xml_exports_w_correct_segment_010521.csv") %>%
+  dplyr::filter(OCT_Type == "ONH" & Num_Images == 28)
+
+all_onh$Filename <- stringr::str_replace(all_onh$Filename,"/Volumes/z/","/Volumes/hoodorchard.psych.columbia.edu/")
+
+all_ppScans <- readr::read_csv("all_xml_exports_w_correct_segment_010521.csv") %>%
+  dplyr::filter(OCT_Type == "Retina" & Num_Images == 62)
+
+all_ppScans$Filename <- stringr::str_replace(all_ppScans$Filename,"/Volumes/z/","/Volumes/hoodorchard.psych.columbia.edu/")
+
+all_bmo <- readr::read_delim("/Volumes/hoodorchard.psych.columbia.edu/MAPS BackUp- DO NOT ALTER/MAPS_20200709/Spectralis/Misc/BMO.txt",
+                      delim = "\t", col_types = cols(.default = "c"))
+
+```
+
+# Methods
+
+## HE Database
+
+The total number of 3.5mm circle scans is `r nrow(all_onh)`. There were also `r nrow(all_ppScans)` Posterior pole scans and `r nrow(all_bmo)` BMO scans (i.e. sets of 24 radial scans).
+
+There are `r all_onh %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(n_eyes = n())` eyes from `r all_onh %>% group_by(First_Name) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(n_patients = n())` patients with an average of `r all_onh %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(mean_tests = mean(n_tests))` (±`r all_onh %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(stdev_tests = sd(n_tests))` SD) 3.5mm circle scans (min: `r all_onh %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(min_tests = min(n_tests))`; max: `r all_onh %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(max_tests = max(n_tests))`)
+
+For the posterior pole scans: `r all_ppScans %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(n_eyes = n())` eyes from `r all_ppScans %>% group_by(First_Name) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(n_patients = n())` patients with an average of `r all_ppScans %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(mean_tests = mean(n_tests))` (±`r all_ppScans %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(stdev_tests = sd(n_tests))` SD) volume scans (min: `r all_ppScans %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(min_tests = min(n_tests))`; max: `r all_ppScans %>% group_by(First_Name,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(max_tests = max(n_tests))`)
+
+For the BMO scans: `r all_bmo %>% group_by(Firstname,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(n_eyes = n())` eyes from `r all_bmo %>% group_by(Firstname) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(n_patients = n())` patients with an average of `r all_bmo %>% group_by(Firstname,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(mean_tests = mean(n_tests))` (±`r all_bmo %>% group_by(Firstname,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(stdev_tests = sd(n_tests))` SD) sets of radial scans (min: `r all_bmo %>% group_by(Firstname,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(min_tests = min(n_tests))`; max: `r all_bmo %>% group_by(Firstname,Eye) %>% summarize(n_tests = n()) %>% ungroup() %>% summarize(max_tests = max(n_tests))`)
+
+
+
+``` {r tidy_onh, include = FALSE}
+onh_tidy <- all_onh %>% dplyr::select(1:8)
+
+onh_tidy <- onh_tidy %>% dplyr::arrange(First_Name, Eye, DoT) %>%
+  dplyr::group_by(First_Name, Eye) %>%
+  dplyr::mutate(Diff_date = c(0,difftime(tail(DoT, -1),
+                                         head(DoT, 1),units = "days"))) %>%
+  dplyr::ungroup()
+
+onh_unique_tests <- onh_tidy %>%
+  dplyr::group_by(First_Name, Eye) %>%
+  dplyr::distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  dplyr::mutate(n_tests = n()) %>%
+  dplyr::ungroup()
+
+unique_onh_per_patient <- onh_unique_tests %>%
+  dplyr::group_by(First_Name, Eye) %>%
+  dplyr::distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  dplyr::summarize(n_tests = n()) %>%
+  dplyr::ungroup()
+
+onh_tidy <- dplyr::left_join(onh_tidy, unique_onh_per_patient,
+                             by = c("First_Name","Eye"))
+
+```
+
+## Circumpapillary RNFL
+The following summary measures were calculated from every circle scan:
+
+- Summary Measures
+  - Global (G)
+  - Temporal (T)
+  - Temporal-Inferior (TI)
+  - Temporal-Superior (TS)
+  - Nasal-Inferior (NI)
+  - Nasal-Superior (NS)
+  - Nasal (N)
+
+Note that the sectoral measures are based on Garway-Heath sectors.
+
+``` {r variability_group, include = FALSE}
+
+short_term <- onh_tidy %>% filter(n_tests >1, Diff_date < 140) %>% group_by(First_Name, Eye) %>%
+  distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  mutate(n_short_test_session = n()) %>%
+  ungroup() %>% filter(n_short_test_session > 1)
+
+n_repeat_scans <- short_term %>% filter(Diff_date != 0) %>% nrow()
+
+unique_eyes <- short_term %>% group_by(First_Name, Eye) %>% summarize(n_test_sessions = n())
+
+unique_IDs <- short_term %>% group_by(First_Name) %>% summarize(n()) %>% select(1)
+
+pxs_age <- left_join(unique_IDs,all_bmo,
+                     by = c("First_Name" = "Firstname")) %>% arrange(First_Name,ExamDate) %>% distinct(First_Name,.keep_all = TRUE) %>% select(First_Name, Age)
+
+pxs_age$Age <- as.numeric(pxs_age$Age)
+```
+
+### Variability (short-term) Group
+For a variability group, we collected all circle scans acquired within 4 months (+2 weeks); i.e. the short-term scans. The total number of repeat scans was `r n_repeat_scans`. There were `r unique_eyes %>% nrow()` eyes with short-term scans from `r unique_IDs %>% nrow()` patients.
+Note the misalignment between number of eyes and number of patients. Since presence or absence of disease is not a factor for this group, MAPS non-study eyes were also included.
+
+
+Mean age `r mean(pxs_age$Age)` (±`r sd(pxs_age$Age)`); Median age `r median(pxs_age$Age)` (IQR: `r IQR(pxs_age$Age, type = 8)`). Mean number of tests: `r mean(unique_eyes$n_test_sessions)` (±`r sd(unique_eyes$n_test_sessions)`); Median `r median(unique_eyes$n_test_sessions)` (IQR: `r IQR(unique_eyes$n_test_sessions, type = 8)`).
+
+
+``` {r progression_group, include = FALSE}
+
+long_term_uniqueIDs <- onh_tidy %>% filter(n_tests >1, Diff_date > 340) %>% group_by(First_Name, Eye) %>%
+  distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  group_by(First_Name) %>% summarize(n())
+
+study_group <- left_join(long_term_uniqueIDs, onh_tidy,
+                         by = "First_Name") %>% select(!`n()`) %>%
+  filter(n_tests >1)
+
+maps_eyes <- read_csv("MAPS_diagnosis_progGrades.csv") %>% select(ID, Eye) %>%
+  mutate(Study_Eye = if_else(Eye =="OD","R", "L"))
+
+study_group <- inner_join(study_group,maps_eyes,
+                   by = c("First_Name"="ID",
+                          "Eye" = "Study_Eye")) %>%
+  select(!"Eye.y")
+
+
+
+study_group_trend <- study_group %>% filter(n_tests > 3)
+
+study_group_trend <- inner_join(study_group_trend,maps_eyes,
+                                by = c("First_Name"="ID",
+                                       "Eye" = "Study_Eye")) %>%
+  select(!"Eye.y")
+
+```
+
+### Progression (long-term) Study Group
+For a progression study group, eyes with the most recent scan at least 11 months apart from the baseline test were included.
+
+Eyes with at least 2 scans (1 baseline, 1 follow-up) were eligible for an event-based analysis.
+``` {r summary_table_study_group, echo = FALSE, results = 'asis'}
+
+n_eyes_event <- study_group %>% group_by(First_Name) %>% summarize(n()) %>% nrow()
+
+pxs_age <- left_join(study_group %>% group_by(First_Name) %>% summarize(n()), all_bmo,
+                     by = c("First_Name" = "Firstname")) %>% arrange(First_Name,ExamDate) %>% 
+  distinct(First_Name,.keep_all = TRUE) %>% select(First_Name, Age)
+
+pxs_age$Age <- as.numeric(pxs_age$Age)
+
+summary_study_test <- study_group %>%
+  distinct(First_Name, Eye, .keep_all = TRUE) %>% summarize(mean_n_tests = mean(n_tests),sd_n_tests = sd(n_tests),
+                                                            median_n_tests = median(n_tests), iqr_n_tests = IQR(n_tests))
+
+summary_table_event <- bind_cols(n_eyes = n_eyes_event,
+                                 mean_age = mean(pxs_age$Age),
+                                 sd_age = sd(pxs_age$Age),
+                                 median_age = median(pxs_age$Age),
+                                 iqr_age = IQR(pxs_age$Age, type = 8),
+                                 summary_study_test)
+
+knitr::kable(summary_table_event,
+             format = 'pipe',
+             col.names = c("Number of Study Eyes",
+                           "Mean Age",
+                           "St.Dev. Age",
+                           "Median Age",
+                           "IQR Age",
+                           "Average Number of Tests",
+                           "St. Dev. Tests",
+                           "Median Number of Tests",
+                           "IQR Tests"),
+             align = 'ccccccccc',
+             caption = "Characteristics of the Study Group, eligible for Event Analysis")
+
+```
+
+
+Eyes with 4 or more scans were eligible for a trend-based analysis.
+``` {r summary_table_study_trend, echo = FALSE, results = 'asis'}
+
+
+n_eyes_trend <- study_group_trend %>% group_by(First_Name) %>% summarize(n()) %>% nrow()
+
+pxs_age_trend <- left_join(study_group_trend %>% group_by(First_Name) %>% summarize(n()), all_bmo,
+                     by = c("First_Name" = "Firstname")) %>% arrange(First_Name,ExamDate) %>% 
+  distinct(First_Name,.keep_all = TRUE) %>% select(First_Name, Age)
+
+pxs_age_trend$Age <- as.numeric(pxs_age_trend$Age)
+
+summary_study_trend <- study_group_trend %>%
+  distinct(First_Name, Eye, .keep_all = TRUE) %>% summarize(mean_n_tests = mean(n_tests),sd_n_tests = sd(n_tests),
+                                                            median_n_tests = median(n_tests), iqr_n_tests = IQR(n_tests))
+
+summary_table_trend <- bind_cols(n_eyes = n_eyes_trend,
+                                 mean_age = mean(pxs_age_trend$Age),
+                                 sd_age = sd(pxs_age_trend$Age),
+                                 median_age = median(pxs_age_trend$Age),
+                                 iqr_age = IQR(pxs_age_trend$Age, type = 8),
+                                 summary_study_trend)
+
+knitr::kable(summary_table_trend,
+             format = 'pipe',
+             col.names = c("Number of Study Eyes",
+                           "Mean Age",
+                           "St.Dev. Age",
+                           "Median Age",
+                           "IQR Age",
+                           "Average Number of Tests",
+                           "St. Dev. Tests",
+                           "Median Number of Tests",
+                           "IQR Tests"),
+             align = 'ccccccccc',
+             caption = "Characteristics of the Study Group, eligible for Trend Analysis")
+
+```
+
+### Variability (Short-Term) Measures
+
+``` {r calculate_variability, include = FALSE}
+
+# eligible_tests <- short_term %>% select(First_Name, Eye, DoT,
+#                                         Filename, Diff_date,n_tests, n_short_test_session)
+# eligible_tests <- eligible_tests[-c(195,196),]
+# 
+# all_scan_sectors <- tibble()
+#
+# for(i in 1:nrow(eligible_tests)){
+#
+#   crnfl_small %<-% octr::extract_HE_crnfl(eligible_tests$Filename[i])
+#
+#   crnfl_sectors %<-% octr::calculate_HE_crnfl_sectors(crnfl_small$rnfl)$all_sectors
+#
+#   scan_sectors <- bind_cols(eligible_tests[i,],
+#                             crnfl_sectors)
+#
+#   all_scan_sectors <- bind_rows(all_scan_sectors,
+#                                 scan_sectors)
+#
+#
+# }
+#
+# write_csv(all_scan_sectors,"var_scans_sectors.csv")
+
+
+# sectors_var <- read_csv("var_scans_sectors.csv")
+# 
+# eligible_eyes <- sectors_var %>% distinct(First_Name,Eye)
+# 
+# all_G_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     G_sector <- bind_cols(baseline = baseline_scan$G[1],
+#                           fup = fup_scans$G[j])
+# 
+#     all_G_sectors <- bind_rows(all_G_sectors,
+#                                G_sector)
+#   }
+# 
+# }
+# 
+# quantreg_G <- quantreg::rq(fup ~ baseline, data = all_G_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_T_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     T_sector <- bind_cols(baseline = baseline_scan$T[1],
+#                           fup = fup_scans$T[j])
+# 
+#     all_T_sectors <- bind_rows(all_T_sectors,
+#                                T_sector)
+#   }
+# 
+# }
+# 
+# quantreg_T <- quantreg::rq(fup ~ baseline, data = all_T_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_TI_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     TI_sector <- bind_cols(baseline = baseline_scan$TI[1],
+#                           fup = fup_scans$TI[j])
+# 
+#     all_TI_sectors <- bind_rows(all_TI_sectors,
+#                                TI_sector)
+#   }
+# 
+# }
+# 
+# quantreg_TI <- quantreg::rq(fup ~ baseline, data = all_TI_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_TS_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     TS_sector <- bind_cols(baseline = baseline_scan$TS[1],
+#                           fup = fup_scans$TS[j])
+# 
+#     all_TS_sectors <- bind_rows(all_TS_sectors,
+#                                TS_sector)
+#   }
+# 
+# }
+# 
+# quantreg_TS <- quantreg::rq(fup ~ baseline, data = all_TS_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# 
+# all_N_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     N_sector <- bind_cols(baseline = baseline_scan$N[1],
+#                           fup = fup_scans$N[j])
+# 
+#     all_N_sectors <- bind_rows(all_N_sectors,
+#                                N_sector)
+#   }
+# 
+# }
+# 
+# quantreg_N <- quantreg::rq(fup ~ baseline, data = all_N_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_NI_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     NI_sector <- bind_cols(baseline = baseline_scan$NI[1],
+#                           fup = fup_scans$NI[j])
+# 
+#     all_NI_sectors <- bind_rows(all_NI_sectors,
+#                                NI_sector)
+#   }
+# 
+# }
+# 
+# quantreg_NI <- quantreg::rq(fup ~ baseline, data = all_NI_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_NS_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- sectors_var %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                       Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     NS_sector <- bind_cols(baseline = baseline_scan$NS[1],
+#                           fup = fup_scans$NS[j])
+# 
+#     all_NS_sectors <- bind_rows(all_NS_sectors,
+#                                NS_sector)
+#   }
+# 
+# }
+# 
+# quantreg_NS <- quantreg::rq(fup ~ baseline, data = all_NS_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# quantreg_sum_table <- tibble(Statistic = c("Slope 2.5%","Intercept 2.5%",
+#                                            "Slope 5%","Intercept 5%",
+#                                            "Slope 95%","Intercept 95%",
+#                                            "Slope 97.5%","Intercept 97.5%"),
+#                              G_metric = c(quantreg_G$coefficients[2,1],
+#                                           quantreg_G$coefficients[1,1],
+#                                           quantreg_G$coefficients[2,2],
+#                                           quantreg_G$coefficients[1,2],
+#                                           quantreg_G$coefficients[2,3],
+#                                           quantreg_G$coefficients[1,3],
+#                                           quantreg_G$coefficients[2,4],
+#                                           quantreg_G$coefficients[1,4]),
+#                              T_metric = c(quantreg_T$coefficients[2,1],
+#                                           quantreg_T$coefficients[1,1],
+#                                           quantreg_T$coefficients[2,2],
+#                                           quantreg_T$coefficients[1,2],
+#                                           quantreg_T$coefficients[2,3],
+#                                           quantreg_T$coefficients[1,3],
+#                                           quantreg_T$coefficients[2,4],
+#                                           quantreg_T$coefficients[1,4]),
+#                              TI_metric = c(quantreg_TI$coefficients[2,1],
+#                                            quantreg_TI$coefficients[1,1],
+#                                            quantreg_TI$coefficients[2,2],
+#                                            quantreg_TI$coefficients[1,2],
+#                                            quantreg_TI$coefficients[2,3],
+#                                            quantreg_TI$coefficients[1,3],
+#                                            quantreg_TI$coefficients[2,4],
+#                                            quantreg_TI$coefficients[1,4]),
+#                              TS_metric = c(quantreg_TS$coefficients[2,1],
+#                                            quantreg_TS$coefficients[1,1],
+#                                            quantreg_TS$coefficients[2,2],
+#                                            quantreg_TS$coefficients[1,2],
+#                                            quantreg_TS$coefficients[2,3],
+#                                            quantreg_TS$coefficients[1,3],
+#                                            quantreg_TS$coefficients[2,4],
+#                                            quantreg_TS$coefficients[1,4]),
+#                              N_metric = c(quantreg_N$coefficients[2,1],
+#                                           quantreg_N$coefficients[1,1],
+#                                           quantreg_N$coefficients[2,2],
+#                                           quantreg_N$coefficients[1,2],
+#                                           quantreg_N$coefficients[2,3],
+#                                           quantreg_N$coefficients[1,3],
+#                                           quantreg_N$coefficients[2,4],
+#                                           quantreg_N$coefficients[1,4]),
+#                              NI_metric = c(quantreg_NI$coefficients[2,1],
+#                                            quantreg_NI$coefficients[1,1],
+#                                            quantreg_NI$coefficients[2,2],
+#                                            quantreg_NI$coefficients[1,2],
+#                                            quantreg_NI$coefficients[2,3],
+#                                            quantreg_NI$coefficients[1,3],
+#                                            quantreg_NI$coefficients[2,4],
+#                                            quantreg_NI$coefficients[1,4]),
+#                              NS_metric = c(quantreg_NS$coefficients[2,1],
+#                                            quantreg_NS$coefficients[1,1],
+#                                            quantreg_NS$coefficients[2,2],
+#                                            quantreg_NS$coefficients[1,2],
+#                                            quantreg_NS$coefficients[2,3],
+#                                            quantreg_NS$coefficients[1,3],
+#                                            quantreg_NS$coefficients[2,4],
+#                                            quantreg_NS$coefficients[1,4]))
+# 
+# write_csv(quantreg_sum_table,"var_quantreg_results.csv")
+
+quantreg_sum_table <- read_csv("var_quantreg_results.csv")
+
+```
+
+Quantile Regression was used to derive thresholds of significant progression. Unlike regular linear regression (Least Squares), which calculates the conditional mean of the target across different values of the features, quantile regression estimates the conditional median (and other percentiles) of the target. This means that instead of being constants, the beta coefficients are now functions with a dependency on the quantile.
+
+The table below provides those beta coefficients for the extreme 5 and 2.5 percentiles on both sides of the distribution (i.e. significant progression and significant improvement).
+
+``` {r quant_reg_table, include = FALSE, results = 'asis'}
+
+knitr::kable(quantreg_sum_table,
+             format = 'pipe',
+             col.names = c("Statistic",
+                           "G Metric",
+                           "T Sector",
+                           "TI Sector",
+                           "TS Sector",
+                           "N Sector",
+                           "NI Sector",
+                           "NS Sector"),
+             align = 'cccccccc',
+             caption = "Results of Quantile Regression (Variability Data)")
+
+```
+
+
+### Progression based on Event Analysis
+
+``` {r prog_event, include = FALSE}
+
+# study_group_event <- study_group %>% group_by(First_Name, Eye) %>%
+#   arrange(Diff_date, .by_group = TRUE) %>%
+#   filter(row_number()==1 | row_number()==n())
+# 
+# eligible_tests <- study_group_event %>% select(First_Name, Eye, DoT,
+#                                                Filename, Diff_date,n_tests)
+# 
+# eligible_tests <- eligible_tests[-c(103,104,201,202),]
+# 
+# all_scan_sectors <- tibble()
+# 
+# for(i in 1:nrow(eligible_tests)){
+# 
+#   crnfl_small %<-% octr::extract_HE_crnfl(eligible_tests$Filename[i])
+# 
+#   crnfl_sectors %<-% octr::calculate_HE_crnfl_sectors(crnfl_small$rnfl)$all_sectors
+# 
+#   scan_sectors <- bind_cols(eligible_tests[i,],
+#                             crnfl_sectors)
+# 
+#   all_scan_sectors <- bind_rows(all_scan_sectors,
+#                                 scan_sectors)
+# 
+# 
+# }
+# 
+# write_csv(all_scan_sectors, "event_group_sectors.csv")
+
+all_scan_sectors <- read_csv("event_group_sectors.csv")
+
+all_scan_sectors <- all_scan_sectors %>% mutate(test_type = if_else(Diff_date==0,"Baseline","Follow-Up")) %>%
+  pivot_longer(cols = c(7:13), names_to = "Metric", values_to = "thickness")
+
+all_scan_sectors <- all_scan_sectors %>% group_by(First_Name,Eye) %>% arrange(Metric, .by_group = TRUE)
+
+study_sectors <- all_scan_sectors %>% select(First_Name, Eye, test_type,
+                                             Metric,thickness) %>% 
+  pivot_wider(names_from = test_type, values_from = thickness)
+
+maps_eyes <- read_csv("MAPS_diagnosis_progGrades.csv") %>%
+  mutate(Study_Eye = if_else(Eye =="OD","R", "L"))
+
+study_sectors <- left_join(study_sectors, maps_eyes,
+                           by = c("First_Name"="ID",
+                                  "Eye" = "Study_Eye")) %>% select(!Eye.y)
+
+study_G <- study_sectors %>% filter(Metric == "G") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$G_metric[1] + quantreg_sum_table$G_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$G_metric[3] + quantreg_sum_table$G_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$G_metric[5] + quantreg_sum_table$G_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$G_metric[7] + quantreg_sum_table$G_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_T <- study_sectors %>% filter(Metric == "T") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$T_metric[1] + quantreg_sum_table$T_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$T_metric[3] + quantreg_sum_table$T_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$T_metric[5] + quantreg_sum_table$T_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$T_metric[7] + quantreg_sum_table$T_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_TI <- study_sectors %>% filter(Metric == "TI") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$TI_metric[1] + quantreg_sum_table$TI_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$TI_metric[3] + quantreg_sum_table$TI_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$TI_metric[5] + quantreg_sum_table$TI_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$TI_metric[7] + quantreg_sum_table$TI_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_TS <- study_sectors %>% filter(Metric == "TS") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$TS_metric[1] + quantreg_sum_table$TS_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$TS_metric[3] + quantreg_sum_table$TS_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$TS_metric[5] + quantreg_sum_table$TS_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$TS_metric[7] + quantreg_sum_table$TS_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_N <- study_sectors %>% filter(Metric == "N") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$N_metric[1] + quantreg_sum_table$N_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$N_metric[3] + quantreg_sum_table$N_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$N_metric[5] + quantreg_sum_table$N_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$N_metric[7] + quantreg_sum_table$N_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_NI <- study_sectors %>% filter(Metric == "NI") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$NI_metric[1] + quantreg_sum_table$NI_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$NI_metric[3] + quantreg_sum_table$NI_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$NI_metric[5] + quantreg_sum_table$NI_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$NI_metric[7] + quantreg_sum_table$NI_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_NS <- study_sectors %>% filter(Metric == "NS") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table$NS_metric[1] + quantreg_sum_table$NS_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table$NS_metric[3] + quantreg_sum_table$NS_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table$NS_metric[5] + quantreg_sum_table$NS_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table$NS_metric[7] + quantreg_sum_table$NS_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_sectors <- bind_rows(study_G,
+                           study_T,
+                           study_TI,
+                           study_TS,
+                           study_N,
+                           study_NI,
+                           study_NS)
+
+eligible_ids <- read_csv("Event_IDs.csv")
+
+study_sectors <- inner_join(study_sectors,eligible_ids,
+                            by = c("First_Name",
+                                   "Eye"))
+
+crnfl_summary_table <- study_sectors %>% group_by(Metric, MAPS_Group) %>%
+  summarize(Total_N = n(),
+            Progression_Sig_2p5 = sum(Sig_Prog_2p5),
+            Progression_Sig_5 = sum(Sig_Prog_5))
+
+```
+``` {r event_table, echo = FALSE, results = 'asis'}
+
+knitr::kable(crnfl_summary_table,
+             format = 'pipe',
+             col.names = c("Summary Metric",
+                           "Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5%",
+                           "Significant Progression at 5%"),
+             align = 'ccccc',
+             caption = "Results of Event-Based Analysis for cRNFL metrics")
+
+```
+
+### Progression based on Trend Analysis
+
+``` {r prog_trend, include = FALSE}
+
+# eligible_tests <- study_group_trend %>% select(First_Name, Eye, DoT,
+#                                                Filename, Diff_date,n_tests)
+# eligible_tests <- eligible_tests[-c(491,883:891),]
+# 
+# all_scan_sectors <- tibble()
+# 
+# for(i in 1:nrow(eligible_tests)){
+# 
+#   crnfl_small %<-% octr::extract_HE_crnfl(eligible_tests$Filename[i])
+# 
+#   crnfl_sectors %<-% octr::calculate_HE_crnfl_sectors(crnfl_small$rnfl)$all_sectors
+# 
+#   scan_sectors <- bind_cols(eligible_tests[i,],
+#                             crnfl_sectors)
+# 
+#   all_scan_sectors <- bind_rows(all_scan_sectors,
+#                                 scan_sectors)
+# 
+# 
+# }
+# 
+# write_csv(all_scan_sectors, "trend_group_sectors.csv")
+
+all_scan_sectors <- read_csv("trend_group_sectors.csv")
+
+all_scan_sectors <- all_scan_sectors %>% mutate(Time_lm = Diff_date / 365)
+
+eligible_eyes <- all_scan_sectors %>% distinct(First_Name, Eye)
+
+all_pxs_trend <- tibble()
+
+for(i in 1:nrow(eligible_eyes)){
+  
+  px_data <- all_scan_sectors %>% filter(First_Name == eligible_eyes$First_Name[i],
+                                         Eye == eligible_eyes$Eye[i])
+  
+  lm_G <- lm(data = px_data, G ~ Time_lm) %>% summary()
+  
+  slope <- lm_G$coefficients[2,1]
+  p_value <- lm_G$coefficients[2,4]
+  
+  px_G <- bind_cols(First_Name = px_data$First_Name[1],
+                    Eye = px_data$Eye[1],
+                    n_tests = px_data$n_tests[1],
+                    Metric= "G",
+                    slope = slope,
+                    p_value = p_value)
+  
+  lm_T <- lm(data = px_data, T ~ Time_lm) %>% summary()
+  
+  slope <- lm_T$coefficients[2,1]
+  p_value <- lm_T$coefficients[2,4]
+  
+  px_T <- bind_cols(First_Name = px_data$First_Name[1],
+                    Eye = px_data$Eye[1],
+                    n_tests = px_data$n_tests[1],
+                    Metric= "T",
+                    slope = slope,
+                    p_value = p_value)
+  
+  lm_TI <- lm(data = px_data, TI ~ Time_lm) %>% summary()
+  
+  slope <- lm_TI$coefficients[2,1]
+  p_value <- lm_TI$coefficients[2,4]
+  
+  px_TI <- bind_cols(First_Name = px_data$First_Name[1],
+                     Eye = px_data$Eye[1],
+                     n_tests = px_data$n_tests[1],
+                     Metric= "TI",
+                     slope = slope,
+                     p_value = p_value)
+  
+  lm_TS <- lm(data = px_data, TS ~ Time_lm) %>% summary()
+  
+  slope <- lm_TS$coefficients[2,1]
+  p_value <- lm_TS$coefficients[2,4]
+  
+  px_TS <- bind_cols(First_Name = px_data$First_Name[1],
+                     Eye = px_data$Eye[1],
+                     n_tests = px_data$n_tests[1],
+                     Metric= "TS",
+                     slope = slope,
+                     p_value = p_value)
+  
+  lm_N <- lm(data = px_data, N ~ Time_lm) %>% summary()
+  
+  slope <- lm_N$coefficients[2,1]
+  p_value <- lm_N$coefficients[2,4]
+  
+  px_N <- bind_cols(First_Name = px_data$First_Name[1],
+                     Eye = px_data$Eye[1],
+                     n_tests = px_data$n_tests[1],
+                     Metric= "N",
+                     slope = slope,
+                     p_value = p_value)
+  
+  lm_NI <- lm(data = px_data, NI ~ Time_lm) %>% summary()
+  
+  slope <- lm_NI$coefficients[2,1]
+  p_value <- lm_NI$coefficients[2,4]
+  
+  px_NI <- bind_cols(First_Name = px_data$First_Name[1],
+                     Eye = px_data$Eye[1],
+                     n_tests = px_data$n_tests[1],
+                     Metric= "NI",
+                     slope = slope,
+                     p_value = p_value)
+  
+  lm_NS <- lm(data = px_data, NS ~ Time_lm) %>% summary()
+  
+  slope <- lm_NS$coefficients[2,1]
+  p_value <- lm_NS$coefficients[2,4]
+  
+  px_NS <- bind_cols(First_Name = px_data$First_Name[1],
+                     Eye = px_data$Eye[1],
+                     n_tests = px_data$n_tests[1],
+                     Metric= "NS",
+                     slope = slope,
+                     p_value = p_value)
+  
+  px_trend <- bind_rows(px_G,
+                        px_T,
+                        px_TI,
+                        px_TS,
+                        px_N,
+                        px_NI,
+                        px_NS)
+  
+  all_pxs_trend <- bind_rows(all_pxs_trend,
+                             px_trend)
+  
+}
+
+  all_pxs_trend <- all_pxs_trend %>% mutate(Sig_Prog_2p5 = case_when(slope < 0 & p_value < 0.025 ~ TRUE,
+                                                                     TRUE ~ FALSE),
+                                            Sig_Prog_5 = case_when(slope < 0 & p_value < 0.05 ~ TRUE,
+                                                                   TRUE ~ FALSE),
+                                            Sig_Imp_2p5 = case_when(slope > 0 & p_value < 0.025 ~ TRUE,
+                                                                    TRUE ~ FALSE),
+                                            Sig_Imp_5 = case_when(slope > 0 & p_value < 0.05 ~ TRUE,
+                                                                  TRUE ~ FALSE))
+  
+  trend_results <- left_join(all_pxs_trend,maps_eyes,
+                             by = c("First_Name"="ID",
+                                    "Eye" = "Study_Eye")) %>% select(!Eye.y)
+  
+  eligible_ids <- read_csv("Trend_IDs.csv")
+  trend_results <- inner_join(trend_results,eligible_ids,
+                              by = c("First_Name",
+                                    "Eye"))
+  
+  trend_summary_table <- trend_results %>% group_by(Metric, MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5 = sum(Sig_Prog_2p5),
+              Progression_Sig_5 = sum(Sig_Prog_5))
+  
+  mean_slope_per_group <- trend_results %>% group_by(Metric, MAPS_Group) %>%
+    summarize(Mean_slope = mean(slope), .groups = "rowwise")
+  
+  all_pxs_trend_age <- all_pxs_trend %>% mutate(Sig_Prog_2p5 = case_when(slope < -0.4 & p_value < 0.025 ~ TRUE,
+                                                                         TRUE ~ FALSE),
+                                                Sig_Prog_5 = case_when(slope < -0.4 & p_value < 0.05 ~ TRUE,
+                                                                       TRUE ~ FALSE))
+  trend_results_age <- left_join(all_pxs_trend_age,maps_eyes,
+                                 by = c("First_Name"="ID",
+                                        "Eye" = "Study_Eye")) %>% select(!Eye.y)
+  
+  trend_summary_table_age <- trend_results_age %>% group_by(Metric, MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5 = sum(Sig_Prog_2p5),
+              Progression_Sig_5 = sum(Sig_Prog_5))
+  
+```
+
+``` {r trend_table, echo = FALSE, results = 'asis'}
+
+knitr::kable(trend_summary_table,
+             format = 'pipe',
+             col.names = c("Summary Metric",
+                           "Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5%",
+                           "Significant Progression at 5%"),
+             align = 'ccccc',
+             caption = "Results of Trend-Based Analysis for cRNFL metrics")
+
+knitr::kable(mean_slope_per_group,
+             format = 'pipe',
+             col.names = c("Study Group",
+                           "Summary Metric",
+                           "Mean Slope"),
+             align = 'ccc',
+             caption = "Mean Slope per Group per Metric")
+
+knitr::kable(trend_summary_table_age,
+             format = 'pipe',
+             col.names = c("Summary Metric",
+                           "Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5%",
+                           "Significant Progression at 5%"),
+             align = 'ccccc',
+             caption = "Results of Trend-Based Analysis for cRNFL metrics, accounting for age-effect")
+
+```
+
+
+``` {r tidy_ppScans, include = FALSE}
+ppScans_tidy <- all_ppScans %>% select(1:8)
+
+ppScans_tidy <- ppScans_tidy %>% arrange(First_Name, Eye, DoT) %>%
+  group_by(First_Name, Eye) %>%
+  mutate(Diff_date = c(0,difftime(tail(DoT, -1),
+                                  head(DoT, 1),units = "days"))) %>%
+  ungroup()
+
+ppScans_unique_tests <- ppScans_tidy %>%
+  group_by(First_Name, Eye) %>%
+  distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  mutate(n_tests = n()) %>%
+  ungroup()
+
+unique_ppScans_per_patient <- ppScans_unique_tests %>%
+  group_by(First_Name, Eye) %>%
+  distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  summarize(n_tests = n()) %>%
+  ungroup()
+
+
+```
+
+
+``` {r variability_ppScans, include = FALSE}
+
+short_term <- ppScans_unique_tests %>% filter(n_tests >1, Diff_date < 140) %>% group_by(First_Name, Eye) %>%
+  distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  mutate(n_short_test_session = n()) %>%
+  ungroup() %>% filter(n_short_test_session > 1)
+
+n_repeat_scans <- short_term %>% filter(Diff_date != 0) %>% nrow()
+
+unique_eyes <- short_term %>% group_by(First_Name, Eye) %>% summarize(n_test_sessions = n())
+
+unique_IDs <- short_term %>% group_by(First_Name) %>% summarize(n()) %>% select(1)
+
+pxs_age <- left_join(unique_IDs,all_bmo,
+                     by = c("First_Name" = "Firstname")) %>% arrange(First_Name,ExamDate) %>% distinct(First_Name,.keep_all = TRUE) %>% select(First_Name, Age)
+
+pxs_age$Age <- as.numeric(pxs_age$Age)
+```
+
+### Variability (short-term) Group - Macular Metrics
+For a variability group, we collected all posterior pole scans acquired within 4 months (+2 weeks); i.e. the short-term scans. The total number of repeat scans was `r n_repeat_scans`. There were `r unique_eyes %>% nrow()` eyes with short-term scans from `r unique_IDs %>% nrow()` patients.
+Note the misalignment between number of eyes and number of patients. Since presence or absence of disease is not a factor for this group, MAPS non-study eyes were also included.
+
+
+Mean age `r mean(pxs_age$Age)` (±`r sd(pxs_age$Age)`); Median age `r median(pxs_age$Age)` (IQR: `r IQR(pxs_age$Age, type = 8)`). Mean number of tests: `r mean(unique_eyes$n_test_sessions)` (±`r sd(unique_eyes$n_test_sessions)`); Median `r median(unique_eyes$n_test_sessions)` (IQR: `r IQR(unique_eyes$n_test_sessions, type = 8)`).
+
+``` {r tidy_mac_metrics, include = FALSE}
+
+# prev_exported_metrics <- read_csv("mac_metrics_HE_all_corrected.csv")
+# 
+# prev_exported_metrics <- prev_exported_metrics %>% mutate(file_name = str_sub(filename,-12,-1))
+# 
+# ppScans_unique_tests <- ppScans_unique_tests %>% mutate(file_name = str_sub(Filename,-12,-1))
+# 
+# all_mac_metrics <- left_join(ppScans_unique_tests, prev_exported_metrics,
+#                              by = c("file_name",
+#                                     "DoB", "Gender", "Eye")) %>%
+#   select(First_Name, DoB, Eye, DoT.x, Filename, Diff_date, n_tests,
+#          G_whole, S_whole, I_whole, G_8degrees, S_8degrees, I_8degrees)
+# 
+# all_mac_metrics_nona <- all_mac_metrics %>% drop_na()
+# 
+# 
+# eyes_with_all_metrics <- all_mac_metrics_nona %>% select(Filename) %>% tibble()
+# 
+# eyes_w_missing_metrics <- anti_join(all_mac_metrics, eyes_with_all_metrics,
+#                                     by = "Filename")
+# 
+# all_scans <- tibble()
+# failed_scans <- tibble()
+# 
+# for(i in 1:nrow(eyes_w_missing_metrics)) {
+#   test_xml <- eyes_w_missing_metrics$Filename[i]
+#   
+#   the_xml <- xml2::read_xml(test_xml)
+#   
+#   Patient_branch <- xml2::xml_find_all(the_xml, ".//Patient", ns = xml2::xml_ns(the_xml))
+#   
+#   
+#   patientID <- xml2::xml_text(xml2::xml_find_all(Patient_branch, ".//PatientID"))
+#   lastName <- xml2::xml_text(xml2::xml_find_all(Patient_branch, ".//LastName"))
+#   firstName <- xml2::xml_text(xml2::xml_find_all(Patient_branch, ".//FirstNames"))
+#   
+#   birthdate <- xml2::xml_find_all(xml2::xml_find_all(Patient_branch, ".//Birthdate"),
+#                                   ".//Date")
+#   
+#   dob_Year <- xml2::xml_text(xml2::xml_find_all(birthdate, ".//Year"))
+#   dob_Month <- xml2::xml_text(xml2::xml_find_all(birthdate, ".//Month"))
+#   dob_Day <- xml2::xml_text(xml2::xml_find_all(birthdate, ".//Day"))
+#   
+#   patientDoB <- paste(dob_Year, dob_Month, dob_Day, sep = "-")
+#   
+#   patient_gender <- xml2::xml_text(xml2::xml_find_all(Patient_branch, ".//Sex"))
+#   
+#   
+#   Study_branch <- xml2::xml_find_all(Patient_branch, ".//Study")
+#   
+#   
+#   Examined_Structure <- xml2::xml_text(xml2::xml_find_all(Study_branch, ".//ExaminedStructure"))
+#   
+#   Scan_Type <- xml2::xml_text(xml2::xml_find_all(Study_branch, ".//Type")[1])
+#   
+#   if(Examined_Structure == "Retina" & Scan_Type == "Volume" ){
+#     
+#     Eye <- xml2::xml_text(xml2::xml_find_all(Study_branch, ".//Laterality")[1])
+#     
+#     examdate <- xml2::xml_find_all(xml2::xml_find_all(Study_branch, ".//ExamDate"),
+#                              ".//Date")
+#     
+#     dot_Year <- xml2::xml_text(xml2::xml_find_all(examdate, ".//Year"))
+#     dot_Month <- xml2::xml_text(xml2::xml_find_all(examdate, ".//Month"))
+#     dot_Day <- xml2::xml_text(xml2::xml_find_all(examdate, ".//Day"))
+#     
+#     ScanDoT <- paste(dot_Year, dot_Month, dot_Day, sep = "-")
+#     
+#     
+#     OCTFieldSize <- xml2::xml_find_all(Study_branch, ".//OCTFieldSize")
+#     Scan_Width <- xml2::xml_integer(xml2::xml_find_all(OCTFieldSize, ".//Width"))
+#     Scan_Height <- xml2::xml_integer(xml2::xml_find_all(OCTFieldSize, ".//Height"))
+#     
+#     if (Scan_Width == 30 & Scan_Height == 25){
+#       
+#       Num_Images <- xml2::xml_integer(xml2::xml_find_all(Study_branch, ".//NumImages"))
+#       
+#       if(Num_Images!=62){
+#         messageText <- "Caution! More than the usual 62 images"
+#         print(messageText)
+#         print(eyes_w_missing_metrics$Filename[i])
+#         failed_scans <- bind_rows(failed_scans,
+#                                   data.frame(filename = eyes_w_missing_metrics$Filename[i],
+#                                              message = messageText))
+#       }
+#       
+#       Image_List <- xml2::xml_find_all(Study_branch, ".//Image")
+#       
+#       for (num_Image in 1:Num_Images){
+#         
+#         current_image_node <- Image_List[num_Image]
+#         
+#         current_image_Type <- xml2::xml_text(xml2::xml_find_all(xml2::xml_find_all(current_image_node, ".//ImageType"),
+#                                                     ".//Type"))
+#         
+#         if(current_image_Type == "OCT"){
+#           
+#           current_num_segmentations <- xml2::xml_integer(xml2::xml_find_all(current_image_node, ".//NumSegmentations"))
+#           
+#           if(!is_empty(current_num_segmentations) && current_num_segmentations == 11){
+#             
+#             current_seg_list <- xml2::xml_find_all(current_image_node, ".//SegLine")
+#             
+#             for(num_Seg in 1:current_num_segmentations){
+#               
+#               current_seg_name <- xml2::xml_text(xml2::xml_find_all(current_seg_list[num_Seg], ".//Name"))
+#               
+#               if(current_seg_name %in% c("ILM","BM","RNFL","GCL","IPL")){
+#                 
+#                 current_seg_Array <- xml2::xml_text(xml2::xml_find_all(current_seg_list[num_Seg], ".//Array")) %>% str_split(" ") %>% 
+#                   unlist() %>% as.numeric() %>% tibble() %>% t()
+#                 
+#                 suppressMessages(
+#                   this_scan <- bind_cols(ID = patientID, LastName = lastName, FirstName = firstName,
+#                                          DoB = patientDoB, Gender = patient_gender, DoT = ScanDoT,
+#                                          Eye = Eye, filename = test_xml,
+#                                          scan_num = num_Image - 1, seg_name = current_seg_name,
+#                                          current_seg_Array)
+#                 )
+#                 
+#                 old_all_scans <- all_scans
+#                 
+#                 all_scans <- tibble()
+#                 
+#                 all_scans <- bind_rows(old_all_scans,
+#                                        this_scan)
+#                 
+#               }
+#               
+#               
+#             }
+#             
+#           } else {
+#             messageText <- "Not 11 segmentations"
+#             print(messageText)
+#             print(current_num_segmentations)
+#             print(eyes_w_missing_metrics$Filename[i])
+#             failed_scans <- bind_rows(failed_scans,
+#                                       data.frame(filename = eyes_w_missing_metrics$Filename[i],
+#                                                  message = messageText))
+#             
+#           }
+#           
+#           
+#           
+#         }
+#         
+#         
+#       }
+#     } else {
+#       messageText <- "Not 30x25 scan"
+#       print(messageText)
+#       print(eyes_w_missing_metrics$Filename[i])
+#       failed_scans <- bind_rows(failed_scans,
+#                                 data.frame(filename = eyes_w_missing_metrics$Filename[i],
+#                                            message = messageText))
+#     }
+#     
+#     
+#     
+#   } else {
+#     messageText <- "Not Type Volume Scan"
+#     print(messageText)
+#     print(eyes_w_missing_metrics$Filename[i])
+#     failed_scans <- bind_rows(failed_scans,
+#                               data.frame(filename = eyes_w_missing_metrics$Filename[i],
+#                                          message = messageText))
+#     
+#   }
+#   
+#   
+#   
+#  
+#   
+#   
+#   # Thickness_Grid_List <- xml_find_all(Study_branch, ".//ThicknessGrid")
+#   # 
+#   # i <- 2
+#   # current_grid_node <- Thickness_Grid_List[i]
+#   # 
+#   # current_grid_Type <- xml_text(xml_find_all(current_grid_node, ".//Type"))
+#   # current_grid_Name <- xml_text(xml_find_all(current_grid_node, ".//Name")[1])
+#   
+#   
+#   
+#   # print(k_filename)
+#   
+#   
+# }
+# 
+# for_GCL_scans <- all_scans %>% filter(seg_name %in% c("RNFL", "GCL"))
+# 
+# for_GCL_scans <- na_if(for_GCL_scans, 3.000e+38)
+# 
+# 
+# all_metrics <- tibble()
+# 
+# count_n <- 1
+# filenames <- for_GCL_scans %>% distinct(filename) %>% as_vector()
+# 
+# for(Filename in filenames) {
+#   
+#   one_vol_scan <- for_GCL_scans %>% filter(filename == Filename)
+#   
+#   unique_scan_num <- one_vol_scan %>% distinct(scan_num) %>% as_vector()
+#   
+#   scan_array <- tibble()
+#   
+#   for (one_scan_num in unique_scan_num){
+#     
+#     one_scan_df <- one_vol_scan %>% filter(scan_num == one_scan_num)
+#     
+#     rnfl_df <- one_scan_df %>% filter(seg_name == "RNFL") %>% select(11:778) %>% 
+#       transpose() %>% unlist()
+#     
+#     gcl_df <- one_scan_df %>% filter(seg_name == "GCL") %>% select(11:778) %>% 
+#       transpose() %>% unlist()
+#     
+#     gclayer <- (gcl_df - rnfl_df) * 3.87
+#     
+#     scan_array <- bind_rows(scan_array,
+#                             gclayer)
+#     
+#   }
+#   
+#   x_degrees <- seq(from = -15, to = 15, length.out = ncol(scan_array))
+# 
+#   y_degrees <- seq(from = -12.5, to = 12.5, length.out = nrow(scan_array))
+# 
+#   vec_scan <- tibble()
+#   for(i in 1:ncol(scan_array)){
+#     for(j in  1:nrow(scan_array)){
+# 
+#       x_coord <- x_degrees[i]
+#       y_coord <- y_degrees[j]
+#       gcl_thickness <- scan_array[j,i] %>% as_vector()
+# 
+#       one_iteration <- bind_cols(x_coord = x_coord,
+#                                  y_coord = y_coord,
+#                                  gcl_thickness = gcl_thickness)
+#       
+#       suppressMessages( vec_scan <- bind_rows(vec_scan,
+#                                               one_iteration)
+#                         )
+# 
+# 
+#     }
+#   }
+#   
+#   # vec_scan <- scan_array %>% as_vector()
+#   # vec_sup2 <- scan_array[1:30,] %>% as_vector()
+#   # vec_inf2 <- scan_array[32:nrow(scan_array),] %>% as_vector()
+#   vec_scan_nafree <- vec_scan %>% drop_na(gcl_thickness)
+#   GMetric <- mean(vec_scan_nafree$gcl_thickness, na.rm = TRUE)
+#   
+#   sup_vol <- vec_scan_nafree %>% filter(y_coord >0)
+#   SMetric <- mean(sup_vol$gcl_thickness, na.rm = TRUE)
+#   
+#   inf_vol <- vec_scan_nafree %>% filter(y_coord <0)
+#   IMetric <- mean(inf_vol$gcl_thickness, na.rm = TRUE)
+#   
+#   vol_8degrees <- vec_scan_nafree %>% filter(y_coord >-8 & y_coord <8) %>%
+#     filter(x_coord >-8 & x_coord <8)
+#   GMetric_8 <- mean(vol_8degrees$gcl_thickness, na.rm = TRUE)
+#   
+#   vol_8degrees_sup <- vec_scan_nafree %>% filter(y_coord >0 & y_coord <8) %>%
+#     filter(x_coord >-8 & x_coord <8)
+#   SMetric_8 <- mean(vol_8degrees_sup$gcl_thickness, na.rm = TRUE)
+#   
+#   vol_8degrees_inf <- vec_scan_nafree %>% filter(y_coord <0 & y_coord >-8) %>%
+#     filter(x_coord >-8 & x_coord <8)
+#   IMetric_8 <- mean(vol_8degrees_inf$gcl_thickness, na.rm = TRUE)
+#   
+#   px_scan <- bind_cols(one_vol_scan[1,1:8],
+#                        G_whole = GMetric,
+#                        S_whole = SMetric,
+#                        I_whole = IMetric,
+#                        G_8degrees = GMetric_8,
+#                        S_8degrees = SMetric_8,
+#                        I_8degrees = IMetric_8)
+#   
+#   all_metrics <- bind_rows(all_metrics,
+#                            px_scan)
+#   
+#   print(count_n)
+#   count_n <- count_n + 1
+#   
+# }
+# 
+# 
+# all_metrics <- all_metrics %>% select(8:14)
+# 
+# all_mac_metrics <- left_join(all_mac_metrics, all_metrics,
+#                              by = c("Filename" = "filename")) %>% 
+#   mutate(G_whole = coalesce(G_whole.x, G_whole.y),
+#          S_whole = coalesce(S_whole.x, S_whole.y),
+#          I_whole = coalesce(I_whole.x, I_whole.y),
+#          G_8degrees = coalesce(G_8degrees.x, G_8degrees.y),
+#          S_8degrees = coalesce(S_8degrees.x, S_8degrees.y),
+#          I_8degrees = coalesce(I_8degrees.x, I_8degrees.y)) %>% 
+#   select(-G_whole.x, -G_whole.y,
+#          -S_whole.x, -S_whole.y,-I_whole.x, -I_whole.y,
+#          -G_8degrees.x, -G_8degrees.y,
+#          -S_8degrees.x, -S_8degrees.y,-I_8degrees.x, -I_8degrees.y)
+# 
+# write_csv(all_mac_metrics, "all_mac_metrics.csv")
+
+all_mac_metrics <- read_csv("all_mac_metrics.csv") %>% rename(DoT = DoT.x)
+
+
+```
+
+
+``` {r progression_mac_group, include = FALSE}
+
+long_term_uniqueIDs <- ppScans_unique_tests %>% filter(n_tests >1, Diff_date > 340) %>% group_by(First_Name, Eye) %>%
+  distinct(First_Name, Eye, DoT, .keep_all = TRUE) %>%
+  group_by(First_Name) %>% summarize(n())
+
+study_group <- left_join(long_term_uniqueIDs, ppScans_unique_tests,
+                         by = "First_Name") %>% select(!`n()`) %>%
+  filter(n_tests >1)
+
+maps_eyes <- read_csv("MAPS_diagnosis_progGrades.csv") %>% select(ID, Eye) %>%
+  mutate(Study_Eye = if_else(Eye =="OD","R", "L"))
+
+study_group <- inner_join(study_group,maps_eyes,
+                   by = c("First_Name"="ID",
+                          "Eye" = "Study_Eye")) %>%
+  select(!"Eye.y")
+
+
+
+study_group_trend <- study_group %>% filter(n_tests > 3)
+
+study_group_trend <- inner_join(study_group_trend,maps_eyes,
+                                by = c("First_Name"="ID",
+                                       "Eye" = "Study_Eye")) %>%
+  select(!"Eye.y")
+
+
+
+```
+
+
+``` {r calculate_variability_mac, include = FALSE}
+
+# eligible_tests <- short_term %>% select(First_Name, Eye, DoT,
+#                                         Filename, Diff_date,n_tests, n_short_test_session)
+# 
+# short_term_metrics <- left_join(eligible_tests, all_mac_metrics,
+#                                 by = c("First_Name", "Eye", "DoT", "Filename", "Diff_date", "n_tests"))
+# 
+# 
+# eligible_eyes <- short_term_metrics %>% distinct(First_Name,Eye)
+# 
+# all_Gmac8_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- short_term_metrics %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                              Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     Gmac_sector <- bind_cols(baseline = baseline_scan$G_8degrees[1],
+#                              fup = fup_scans$G_8degrees[j])
+# 
+#     all_Gmac8_sectors <- bind_rows(all_Gmac8_sectors,
+#                                   Gmac_sector)
+#   }
+# 
+# }
+# 
+# quantreg_Gmac8 <- quantreg::rq(fup ~ baseline, data = all_Gmac8_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_Gmac_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- short_term_metrics %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                              Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     Gmac_sector <- bind_cols(baseline = baseline_scan$G_whole[1],
+#                              fup = fup_scans$G_whole[j])
+# 
+#     all_Gmac_sectors <- bind_rows(all_Gmac_sectors,
+#                                   Gmac_sector)
+#   }
+# 
+# }
+# 
+# quantreg_Gmac <- quantreg::rq(fup ~ baseline, data = all_Gmac_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_Smac8_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- short_term_metrics %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                              Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     Smac_sector <- bind_cols(baseline = baseline_scan$S_8degrees[1],
+#                              fup = fup_scans$S_8degrees[j])
+# 
+#     all_Smac8_sectors <- bind_rows(all_Smac8_sectors,
+#                                   Smac_sector)
+#   }
+# 
+# }
+# 
+# quantreg_Smac8 <- quantreg::rq(fup ~ baseline, data = all_Smac8_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_Smac_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- short_term_metrics %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                              Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     Smac_sector <- bind_cols(baseline = baseline_scan$S_whole[1],
+#                              fup = fup_scans$S_whole[j])
+# 
+#     all_Smac_sectors <- bind_rows(all_Smac_sectors,
+#                                   Smac_sector)
+#   }
+# 
+# }
+# 
+# quantreg_Smac <- quantreg::rq(fup ~ baseline, data = all_Smac_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# 
+# all_Imac8_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- short_term_metrics %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                              Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     Imac_sector <- bind_cols(baseline = baseline_scan$I_8degrees[1],
+#                              fup = fup_scans$I_8degrees[j])
+# 
+#     all_Imac8_sectors <- bind_rows(all_Imac8_sectors,
+#                                   Imac_sector)
+#   }
+# 
+# }
+# 
+# quantreg_Imac8 <- quantreg::rq(fup ~ baseline, data = all_Imac8_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# all_Imac_sectors <- tibble()
+# for(i in 1:nrow(eligible_eyes)){
+# 
+#   eye_scans <- short_term_metrics %>% filter(First_Name == eligible_eyes$First_Name[i],
+#                                              Eye == eligible_eyes$Eye[i]) %>%
+#     arrange(Diff_date)
+# 
+#   baseline_scan <- eye_scans[1,]
+#   fup_scans <- eye_scans[-1,]
+# 
+#   for(j in 1:nrow(fup_scans)){
+#     Imac_sector <- bind_cols(baseline = baseline_scan$I_whole[1],
+#                              fup = fup_scans$I_whole[j])
+# 
+#     all_Imac_sectors <- bind_rows(all_Imac_sectors,
+#                                   Imac_sector)
+#   }
+# 
+# }
+# 
+# quantreg_Imac <- quantreg::rq(fup ~ baseline, data = all_Imac_sectors, tau = c(0.025,0.05,0.95,0.975))
+# 
+# 
+# quantreg_sum_table_mac <- tibble(Statistic = c("Slope 2.5%","Intercept 2.5%",
+#                                                "Slope 5%","Intercept 5%",
+#                                                "Slope 95%","Intercept 95%",
+#                                                "Slope 97.5%","Intercept 97.5%"),
+#                                  G_whole_metric = c(quantreg_Gmac$coefficients[2,1],
+#                                                     quantreg_Gmac$coefficients[1,1],
+#                                                     quantreg_Gmac$coefficients[2,2],
+#                                                     quantreg_Gmac$coefficients[1,2],
+#                                                     quantreg_Gmac$coefficients[2,3],
+#                                                     quantreg_Gmac$coefficients[1,3],
+#                                                     quantreg_Gmac$coefficients[2,4],
+#                                                     quantreg_Gmac$coefficients[1,4]),
+#                                  S_whole_metric = c(quantreg_Smac$coefficients[2,1],
+#                                                     quantreg_Smac$coefficients[1,1],
+#                                                     quantreg_Smac$coefficients[2,2],
+#                                                     quantreg_Smac$coefficients[1,2],
+#                                                     quantreg_Smac$coefficients[2,3],
+#                                                     quantreg_Smac$coefficients[1,3],
+#                                                     quantreg_Smac$coefficients[2,4],
+#                                                     quantreg_Smac$coefficients[1,4]),
+#                                  I_whole_metric = c(quantreg_Imac$coefficients[2,1],
+#                                                     quantreg_Imac$coefficients[1,1],
+#                                                     quantreg_Imac$coefficients[2,2],
+#                                                     quantreg_Imac$coefficients[1,2],
+#                                                     quantreg_Imac$coefficients[2,3],
+#                                                     quantreg_Imac$coefficients[1,3],
+#                                                     quantreg_Imac$coefficients[2,4],
+#                                                     quantreg_Imac$coefficients[1,4]),
+#                                  G_8_metric = c(quantreg_Gmac8$coefficients[2,1],
+#                                                 quantreg_Gmac8$coefficients[1,1],
+#                                                 quantreg_Gmac8$coefficients[2,2],
+#                                                 quantreg_Gmac8$coefficients[1,2],
+#                                                 quantreg_Gmac8$coefficients[2,3],
+#                                                 quantreg_Gmac8$coefficients[1,3],
+#                                                 quantreg_Gmac8$coefficients[2,4],
+#                                                 quantreg_Gmac8$coefficients[1,4]),
+#                                  S_8_metric = c(quantreg_Smac8$coefficients[2,1],
+#                                                 quantreg_Smac8$coefficients[1,1],
+#                                                 quantreg_Smac8$coefficients[2,2],
+#                                                 quantreg_Smac8$coefficients[1,2],
+#                                                 quantreg_Smac8$coefficients[2,3],
+#                                                 quantreg_Smac8$coefficients[1,3],
+#                                                 quantreg_Smac8$coefficients[2,4],
+#                                                 quantreg_Smac8$coefficients[1,4]),
+#                                  I_8_metric = c(quantreg_Imac8$coefficients[2,1],
+#                                                 quantreg_Imac8$coefficients[1,1],
+#                                                 quantreg_Imac8$coefficients[2,2],
+#                                                 quantreg_Imac8$coefficients[1,2],
+#                                                 quantreg_Imac8$coefficients[2,3],
+#                                                 quantreg_Imac8$coefficients[1,3],
+#                                                 quantreg_Imac8$coefficients[2,4],
+#                                                 quantreg_Imac8$coefficients[1,4]))
+# 
+# write_csv(quantreg_sum_table_mac,"var_quantreg_results_mac.csv")
+
+quantreg_sum_table_mac <- read_csv("var_quantreg_results_mac.csv")
+
+```
+
+``` {r quant_reg_table_mac, include = FALSE, results = 'asis'}
+
+knitr::kable(quantreg_sum_table_mac,
+             format = 'pipe',
+             col.names = c("Statistic",
+                           "G Mac (Whole Scan)",
+                           "S Mac (Whole Scan)",
+                           "I Mac (Whole Scan)",
+                           "G Mac (8 degrees)",
+                           "S Mac (8 degrees)",
+                           "I Mac (8 degrees)"),
+             align = 'ccccccc',
+             caption = "Results of Quantile Regression (Variability Data) - Macular Scans")
+
+```
+
+``` {r prog_event_mac, include = FALSE}
+
+# study_group_event <- study_group %>% group_by(First_Name, Eye) %>%
+#   arrange(Diff_date, .by_group = TRUE) %>%
+#   filter(row_number()==1 | row_number()==n())
+# 
+# eligible_tests <- study_group_event %>% select(First_Name, Eye, DoT,
+#                                                Filename, Diff_date,n_tests)
+# 
+# event_mac_sectors <- left_join(eligible_tests, all_mac_metrics,
+#                                by = c("First_Name",
+#                                       "Eye",
+#                                       "DoT",
+#                                       "Filename",
+#                                       "Diff_date",
+#                                       "n_tests"))
+# 
+# 
+# write_csv(event_mac_sectors, "event_group_sectors_mac.csv")
+
+all_scan_sectors <- read_csv("event_group_sectors_mac.csv")
+
+all_scan_sectors <- all_scan_sectors %>% mutate(test_type = if_else(Diff_date==0,"Baseline","Follow-Up")) %>%
+  pivot_longer(cols = c(8:13), names_to = "Metric", values_to = "thickness")
+
+all_scan_sectors <- all_scan_sectors %>% group_by(First_Name,Eye) %>% arrange(Metric, .by_group = TRUE)
+
+study_sectors <- all_scan_sectors %>% select(First_Name, Eye, test_type,
+                                             Metric,thickness) %>% 
+  pivot_wider(names_from = test_type, values_from = thickness)
+
+maps_eyes <- read_csv("MAPS_diagnosis_progGrades.csv") %>%
+  mutate(Study_Eye = if_else(Eye =="OD","R", "L"))
+
+study_sectors <- left_join(study_sectors, maps_eyes,
+                           by = c("First_Name"="ID",
+                                  "Eye" = "Study_Eye")) %>% select(!Eye.y)
+
+study_G_8 <- study_sectors %>% filter(Metric == "G_8degrees") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table_mac$G_8_metric[1] + quantreg_sum_table_mac$G_8_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table_mac$G_8_metric[3] + quantreg_sum_table_mac$G_8_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table_mac$G_8_metric[5] + quantreg_sum_table_mac$G_8_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table_mac$G_8_metric[7] + quantreg_sum_table_mac$G_8_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_S_8 <- study_sectors %>% filter(Metric == "S_8degrees") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table_mac$S_8_metric[1] + quantreg_sum_table_mac$S_8_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table_mac$S_8_metric[3] + quantreg_sum_table_mac$S_8_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table_mac$S_8_metric[5] + quantreg_sum_table_mac$S_8_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table_mac$S_8_metric[7] + quantreg_sum_table_mac$S_8_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_I_8 <- study_sectors %>% filter(Metric == "I_8degrees") %>%
+  mutate(threshold_2p5 = Baseline*quantreg_sum_table_mac$I_8_metric[1] + quantreg_sum_table_mac$I_8_metric[2],
+         threshold_5 = Baseline*quantreg_sum_table_mac$I_8_metric[3] + quantreg_sum_table_mac$I_8_metric[4],
+         threshold_95 = Baseline*quantreg_sum_table_mac$I_8_metric[5] + quantreg_sum_table_mac$I_8_metric[6],
+         threshold_97p5 = Baseline*quantreg_sum_table_mac$I_8_metric[7] + quantreg_sum_table_mac$I_8_metric[8],
+         Sig_Prog_2p5 = if_else(`Follow-Up` < threshold_2p5, TRUE, FALSE),
+         Sig_Prog_5 = if_else(`Follow-Up` < threshold_5, TRUE, FALSE),
+         Sig_Imp_95 = if_else(`Follow-Up` > threshold_95, TRUE, FALSE),
+         Sig_Imp_97p5 = if_else(`Follow-Up` > threshold_97p5, TRUE, FALSE))
+
+study_sectors <- bind_rows(study_G_8,
+                           study_S_8,
+                           study_I_8)
+
+eligible_ids <- read_csv("Event_IDs.csv")
+
+study_sectors <- inner_join(study_sectors,eligible_ids,
+                            by = c("First_Name",
+                                   "Eye"))
+
+mac_summary_table_event <- study_sectors %>% group_by(Metric, MAPS_Group) %>%
+  summarize(Total_N = n(),
+            Progression_Sig_2p5 = sum(Sig_Prog_2p5),
+            Progression_Sig_5 = sum(Sig_Prog_5))
+
+```
+
+``` {r event_table_mac, echo = FALSE, results = 'asis'}
+
+knitr::kable(mac_summary_table_event,
+             format = 'pipe',
+             col.names = c("Summary Metric",
+                           "Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5%",
+                           "Significant Progression at 5%"),
+             align = 'ccccc',
+             caption = "Results of Event-Based Analysis for Macular metrics")
+
+```
+
+
+``` {r prog_trend_mac, include = FALSE}
+
+# eligible_tests <- study_group_trend %>% select(First_Name, Eye, DoT,
+#                                                Filename, Diff_date,n_tests)
+# 
+# 
+# 
+# trend_mac_sectors <- left_join(eligible_tests, all_mac_metrics,
+#                                by = c("First_Name",
+#                                       "Eye",
+#                                       "DoT",
+#                                       "Filename",
+#                                       "Diff_date",
+#                                       "n_tests"))
+# 
+# write_csv(trend_mac_sectors, "trend_group_sectors_mac.csv")
+
+all_scan_sectors <- read_csv("trend_group_sectors_mac.csv")
+
+all_scan_sectors <- all_scan_sectors %>% mutate(Time_lm = Diff_date / 365)
+
+eligible_eyes <- all_scan_sectors %>% distinct(First_Name, Eye)
+
+all_pxs_trend <- tibble()
+
+for(i in 1:nrow(eligible_eyes)){
+  
+  px_data <- all_scan_sectors %>% filter(First_Name == eligible_eyes$First_Name[i],
+                                         Eye == eligible_eyes$Eye[i])
+  
+  lm_G_8 <- lm(data = px_data, G_8degrees ~ Time_lm) %>% summary()
+  
+  slope <- lm_G_8$coefficients[2,1]
+  p_value <- lm_G_8$coefficients[2,4]
+  
+  px_G_8 <- bind_cols(First_Name = px_data$First_Name[1],
+                    Eye = px_data$Eye[1],
+                    n_tests = px_data$n_tests[1],
+                    Metric= "G_8degrees",
+                    slope = slope,
+                    p_value = p_value)
+  
+  lm_S_8 <- lm(data = px_data, S_8degrees ~ Time_lm) %>% summary()
+  
+  slope <- lm_S_8$coefficients[2,1]
+  p_value <- lm_S_8$coefficients[2,4]
+  
+  px_S_8 <- bind_cols(First_Name = px_data$First_Name[1],
+                    Eye = px_data$Eye[1],
+                    n_tests = px_data$n_tests[1],
+                    Metric= "S_8degrees",
+                    slope = slope,
+                    p_value = p_value)
+  
+  lm_I_8 <- lm(data = px_data, I_8degrees ~ Time_lm) %>% summary()
+  
+  slope <- lm_I_8$coefficients[2,1]
+  p_value <- lm_I_8$coefficients[2,4]
+  
+  px_I_8 <- bind_cols(First_Name = px_data$First_Name[1],
+                     Eye = px_data$Eye[1],
+                     n_tests = px_data$n_tests[1],
+                     Metric= "I_8degrees",
+                     slope = slope,
+                     p_value = p_value)
+  
+  px_trend <- bind_rows(px_G_8,
+                        px_S_8,
+                        px_I_8)
+  
+  all_pxs_trend <- bind_rows(all_pxs_trend,
+                             px_trend)
+  
+}
+
+  all_pxs_trend <- all_pxs_trend %>% mutate(Sig_Prog_2p5 = case_when(slope < 0 & p_value < 0.025 ~ TRUE,
+                                                                     TRUE ~ FALSE),
+                                            Sig_Prog_5 = case_when(slope < 0 & p_value < 0.05 ~ TRUE,
+                                                                   TRUE ~ FALSE),
+                                            Sig_Imp_2p5 = case_when(slope > 0 & p_value < 0.025 ~ TRUE,
+                                                                    TRUE ~ FALSE),
+                                            Sig_Imp_5 = case_when(slope > 0 & p_value < 0.05 ~ TRUE,
+                                                                  TRUE ~ FALSE))
+  
+  trend_results <- left_join(all_pxs_trend,maps_eyes,
+                             by = c("First_Name"="ID",
+                                    "Eye" = "Study_Eye")) %>% select(!Eye.y)
+  
+    eligible_ids <- read_csv("Trend_IDs.csv")
+  trend_results <- inner_join(trend_results,eligible_ids,
+                              by = c("First_Name",
+                                    "Eye"))
+  
+  trend_summary_table <- trend_results %>% group_by(Metric, MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5 = sum(Sig_Prog_2p5),
+              Progression_Sig_5 = sum(Sig_Prog_5))
+  
+  mean_slope_per_group <- trend_results %>% group_by(Metric, MAPS_Group) %>%
+    summarize(Mean_slope = mean(slope), .groups = "rowwise")
+  
+  all_pxs_trend_age <- all_pxs_trend %>% mutate(Sig_Prog_2p5 = case_when(slope < -0.2 & p_value < 0.025 ~ TRUE,
+                                                                         TRUE ~ FALSE),
+                                                Sig_Prog_5 = case_when(slope < -0.2 & p_value < 0.05 ~ TRUE,
+                                                                       TRUE ~ FALSE))
+  trend_results_age <- left_join(all_pxs_trend_age,maps_eyes,
+                                 by = c("First_Name"="ID",
+                                        "Eye" = "Study_Eye")) %>% select(!Eye.y)
+  
+  trend_summary_table_age <- trend_results_age %>% group_by(Metric, MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5 = sum(Sig_Prog_2p5),
+              Progression_Sig_5 = sum(Sig_Prog_5))
+  
+```
+``` {r trend_table_mac, echo = FALSE, results = 'asis'}
+
+knitr::kable(trend_summary_table,
+             format = 'pipe',
+             col.names = c("Summary Metric",
+                           "Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5%",
+                           "Significant Progression at 5%"),
+             align = 'ccccc',
+             caption = "Results of Trend-Based Analysis for Mac metrics")
+
+knitr::kable(mean_slope_per_group,
+             format = 'pipe',
+             col.names = c("Study Group",
+                           "Summary Metric",
+                           "Mean Slope"),
+             align = 'ccc',
+             caption = "Mean Slope per Group per Mac Metric")
+
+knitr::kable(trend_summary_table_age,
+             format = 'pipe',
+             col.names = c("Summary Metric",
+                           "Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5%",
+                           "Significant Progression at 5%"),
+             align = 'ccccc',
+             caption = "Results of Trend-Based Analysis for Mac metrics, accounting for age-effect")
+
+```
+
+### Structure-Structure Comparison
+
+
+``` {r S-S_comparison, include = FALSE}
+# write_csv(all_pxs_trend,"mac_trend_metrics.csv")
+# 
+# write_csv(study_sectors, "mac_event_metrics.csv")
+# 
+# write_csv(study_sectors,"crnfl_event_metrics.csv")
+# 
+# write_csv(trend_results,"crnfl_trend_metrics.csv")
+
+
+mac_trend_metrics <- read_csv("mac_trend_metrics.csv")
+
+crnfl_trend_metrics <- read_csv("crnfl_trend_metrics.csv")
+
+crnfl_event_metrics <- read_csv("crnfl_event_metrics.csv")
+
+mac_event_metrics <- read_csv("mac_event_metrics.csv")
+
+# combined_trend_metrics <- inner_join(mac_trend_metrics, crnfl_trend_metrics,
+#                                      by = c("First_Name", "Eye"),
+#                                      suffix = c("_mac", "_crnfl"))
+# 
+# 
+# str_str_G <- combined_trend_metrics %>% filter(Metric_mac == "G_8degrees",
+#                                                Metric_crnfl == "G" ) %>%
+#   select(1:8,11:16, 19:21)
+# 
+# str_str_G <- str_str_G %>% mutate(Sig_Prog_2p5_G_AND_GMac = case_when(Sig_Prog_2p5_mac == TRUE & Sig_Prog_2p5_crnfl == TRUE ~ TRUE,
+#                                                                       TRUE ~ FALSE),
+#                                   Sig_Prog_5_G_AND_GMac = case_when(Sig_Prog_5_mac == TRUE & Sig_Prog_5_crnfl == TRUE ~ TRUE,
+#                                                                     TRUE ~ FALSE),
+#                                   Sig_Prog_2p5_G_OR_GMac = case_when(Sig_Prog_2p5_mac == TRUE | Sig_Prog_2p5_crnfl == TRUE ~ TRUE,
+#                                                                      TRUE ~ FALSE),
+#                                   Sig_Prog_5_G_OR_GMac = case_when(Sig_Prog_5_mac == TRUE | Sig_Prog_5_crnfl == TRUE ~ TRUE,
+#                                                                    TRUE ~ FALSE))
+# 
+# trend_summary_table_s_sG <- str_str_G  %>% group_by(MAPS_Group) %>%
+#     summarize(Total_N = n(),
+#               Progression_Sig_2p5_AND = sum(Sig_Prog_2p5_G_AND_GMac),
+#               Progression_Sig_5_AND = sum(Sig_Prog_5_G_AND_GMac),
+#               Progression_Sig_2p5_OR = sum(Sig_Prog_2p5_G_OR_GMac),
+#               Progression_Sig_5_OR = sum(Sig_Prog_5_G_OR_GMac))
+
+
+
+
+crnfl_event_metrics_wider <- crnfl_event_metrics %>% pivot_wider(names_from = Metric, values_from = c(Sig_Prog_2p5,Sig_Prog_5,
+                                                                                                      Sig_Imp_95,Sig_Imp_97p5))
+crnfl_trend_metrics_wider <- crnfl_trend_metrics %>% pivot_wider(names_from = Metric, values_from = c(Sig_Prog_2p5,Sig_Prog_5,
+                                                                                                      Sig_Imp_5,Sig_Imp_2p5))
+mac_event_metrics_wider <- mac_event_metrics %>% pivot_wider(names_from = Metric, values_from = c(Sig_Prog_2p5,Sig_Prog_5,
+                                                                                                  Sig_Imp_95,Sig_Imp_97p5))
+mac_trend_metrics_wider <- mac_trend_metrics %>% pivot_wider(names_from = Metric, values_from = c(Sig_Prog_2p5,Sig_Prog_5,
+                                                                                                  Sig_Imp_5,Sig_Imp_2p5))
+
+crnfl_event_G <- crnfl_event_metrics_wider %>% select(1:11, Sig_Prog_2p5_G,Sig_Prog_5_G) %>% drop_na()
+
+mac_event_G <- mac_event_metrics_wider %>% select(1:11, Sig_Prog_2p5_G_8degrees,Sig_Prog_5_G_8degrees) %>% drop_na()
+
+combined_event_G <- inner_join(mac_event_G,crnfl_event_G,
+                               by = c("First_Name","Eye"),
+                               suffix = c("_mac","_crnfl"))
+
+combined_event_G <- combined_event_G %>% mutate(Sig_Prog_2p5_G_AND_GMac = case_when(Sig_Prog_2p5_G_8degrees == TRUE & Sig_Prog_2p5_G == TRUE ~ TRUE,
+                                                                                    TRUE ~ FALSE),
+                                                Sig_Prog_5_G_AND_GMac = case_when(Sig_Prog_5_G_8degrees == TRUE & Sig_Prog_5_G == TRUE ~ TRUE,
+                                                                                  TRUE ~ FALSE),
+                                                Sig_Prog_2p5_G_OR_GMac = case_when(Sig_Prog_2p5_G_8degrees == TRUE | Sig_Prog_2p5_G == TRUE ~ TRUE,
+                                                                                   TRUE ~ FALSE),
+                                                Sig_Prog_5_G_OR_GMac = case_when(Sig_Prog_5_G_8degrees == TRUE | Sig_Prog_5_G == TRUE ~ TRUE,
+                                                                                 TRUE ~ FALSE))
+
+event_summary_table_s_sG <- combined_event_G  %>% group_by(MAPS_Group_mac) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5_AND = sum(Sig_Prog_2p5_G_AND_GMac),
+              Progression_Sig_5_AND = sum(Sig_Prog_5_G_AND_GMac),
+              Progression_Sig_2p5_OR = sum(Sig_Prog_2p5_G_OR_GMac),
+              Progression_Sig_5_OR = sum(Sig_Prog_5_G_OR_GMac))
+
+
+crnfl_trend_G <- crnfl_trend_metrics_wider %>% select(1:8, Sig_Prog_2p5_G,Sig_Prog_5_G) %>% drop_na()
+
+mac_trend_G <- mac_trend_metrics_wider %>% select(1:5, Sig_Prog_2p5_G_8degrees,Sig_Prog_5_G_8degrees) %>% drop_na()
+
+combined_trend_G <- inner_join(mac_trend_G,crnfl_trend_G,
+                               by = c("First_Name","Eye"),
+                               suffix = c("_mac","_crnfl"))
+
+combined_trend_G <- combined_trend_G %>% mutate(Sig_Prog_2p5_G_AND_GMac = case_when(Sig_Prog_2p5_G_8degrees == TRUE & Sig_Prog_2p5_G == TRUE ~ TRUE,
+                                                                                    TRUE ~ FALSE),
+                                                Sig_Prog_5_G_AND_GMac = case_when(Sig_Prog_5_G_8degrees == TRUE & Sig_Prog_5_G == TRUE ~ TRUE,
+                                                                                  TRUE ~ FALSE),
+                                                Sig_Prog_2p5_G_OR_GMac = case_when(Sig_Prog_2p5_G_8degrees == TRUE | Sig_Prog_2p5_G == TRUE ~ TRUE,
+                                                                                   TRUE ~ FALSE),
+                                                Sig_Prog_5_G_OR_GMac = case_when(Sig_Prog_5_G_8degrees == TRUE | Sig_Prog_5_G == TRUE ~ TRUE,
+                                                                                 TRUE ~ FALSE))
+
+trend_summary_table_s_sG <- combined_trend_G  %>% group_by(MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5_AND = sum(Sig_Prog_2p5_G_AND_GMac),
+              Progression_Sig_5_AND = sum(Sig_Prog_5_G_AND_GMac),
+              Progression_Sig_2p5_OR = sum(Sig_Prog_2p5_G_OR_GMac),
+              Progression_Sig_5_OR = sum(Sig_Prog_5_G_OR_GMac))
+
+
+
+
+
+crnfl_event_TI <- crnfl_event_metrics_wider %>% select(1:11, Sig_Prog_2p5_TI,Sig_Prog_5_TI) %>% drop_na()
+crnfl_event_TS <- crnfl_event_metrics_wider %>% select(1:11, Sig_Prog_2p5_TS,Sig_Prog_5_TS) %>% drop_na()
+
+crnfl_event_sectors <- inner_join(crnfl_event_TI,crnfl_event_TS,
+                                  by = c("First_Name",
+                                         "Eye",
+                                         "Dx",
+                                         "MAPS_Group",
+                                         "DCH_Grade"),
+                                  suffix = c("_TI","_TS"))
+
+mac_event_I <- mac_event_metrics_wider %>% select(1:11, Sig_Prog_2p5_I_8degrees,Sig_Prog_5_I_8degrees) %>% drop_na()
+mac_event_S <- mac_event_metrics_wider %>% select(1:11, Sig_Prog_2p5_S_8degrees,Sig_Prog_5_S_8degrees) %>% drop_na()
+
+mac_event_sectors <- inner_join(mac_event_I, mac_event_S,
+                                by = c("First_Name",
+                                       "Eye",
+                                       "Dx",
+                                       "MAPS_Group",
+                                       "DCH_Grade"),
+                                suffix = c("_I", "_S"))
+
+combined_event_sectors <- inner_join(mac_event_sectors,crnfl_event_sectors,
+                                     by = c("First_Name","Eye",
+                                            "Dx",
+                                            "MAPS_Group",
+                                            "DCH_Grade"),
+                                     suffix = c("_mac","_crnfl"))
+
+combined_event_sectors_add <- combined_event_sectors %>% mutate(Sig_Prog_2p5_TI_TS_Imac_Smac_OR = case_when(Sig_Prog_2p5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_2p5_S_8degrees == TRUE |
+                                                                                                            Sig_Prog_2p5_TI == TRUE |
+                                                                                                            Sig_Prog_2p5_TS == TRUE ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_2p5_TIORTS_AND_ImacORSmac = case_when((Sig_Prog_2p5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_2p5_S_8degrees == TRUE) &
+                                                                                                            (Sig_Prog_2p5_TI == TRUE |
+                                                                                                            Sig_Prog_2p5_TS == TRUE) ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_5_TI_TS_Imac_Smac_OR = case_when(Sig_Prog_5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_5_S_8degrees == TRUE |
+                                                                                                            Sig_Prog_5_TI == TRUE |
+                                                                                                            Sig_Prog_5_TS == TRUE ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_5_TIORTS_AND_ImacORSmac = case_when((Sig_Prog_5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_5_S_8degrees == TRUE) &
+                                                                                                            (Sig_Prog_5_TI == TRUE |
+                                                                                                            Sig_Prog_5_TS == TRUE) ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_2p5_TI_AND_Imac_OR_Smac_AND_TS = case_when((Sig_Prog_2p5_I_8degrees == TRUE & Sig_Prog_2p5_TI == TRUE) | (Sig_Prog_2p5_S_8degrees == TRUE & Sig_Prog_2p5_TS == TRUE) ~ TRUE,
+                                                                                                                    TRUE ~ FALSE),
+                                                                Sig_Prog_5_TI_AND_Imac_OR_Smac_AND_TS = case_when((Sig_Prog_5_I_8degrees == TRUE & Sig_Prog_5_TI == TRUE) | (Sig_Prog_5_S_8degrees == TRUE & Sig_Prog_5_TS == TRUE) ~ TRUE,
+                                                                                                                    TRUE ~ FALSE))
+                                                              
+
+event_summary_table_SS_sectors <- combined_event_sectors_add  %>% group_by(MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5_OR_allSectors = sum(Sig_Prog_2p5_TI_TS_Imac_Smac_OR),
+              Progression_Sig_5_OR_allSectors = sum(Sig_Prog_5_TI_TS_Imac_Smac_OR),
+              Progression_Sig_2p5_tiORtsANDimacORsmac = sum(Sig_Prog_2p5_TIORTS_AND_ImacORSmac),
+              Progression_Sig_5_tiORtsANDimacORsmac = sum(Sig_Prog_5_TIORTS_AND_ImacORSmac),
+              Progression_Sig_2p5_tiANDimacORsmacANDts = sum(Sig_Prog_2p5_TI_AND_Imac_OR_Smac_AND_TS),
+              Progression_Sig_5_tiANDimacORsmacANDts = sum(Sig_Prog_5_TI_AND_Imac_OR_Smac_AND_TS))
+
+
+
+crnfl_trend_TI <- crnfl_trend_metrics_wider %>% select(1:8, Sig_Prog_2p5_TI,Sig_Prog_5_TI) %>% drop_na()
+crnfl_trend_TS <- crnfl_trend_metrics_wider %>% select(1:8, Sig_Prog_2p5_TS,Sig_Prog_5_TS) %>% drop_na()
+
+crnfl_trend_sectors <- inner_join(crnfl_trend_TI,crnfl_trend_TS,
+                                  by = c("First_Name",
+                                         "Eye",
+                                         "Dx",
+                                         "MAPS_Group",
+                                         "DCH_Grade"),
+                                  suffix = c("_TI","_TS"))
+
+mac_trend_I <- mac_trend_metrics_wider %>% select(1:5, Sig_Prog_2p5_I_8degrees,Sig_Prog_5_I_8degrees) %>% drop_na()
+mac_trend_S <- mac_trend_metrics_wider %>% select(1:5, Sig_Prog_2p5_S_8degrees,Sig_Prog_5_S_8degrees) %>% drop_na()
+
+mac_trend_sectors <- inner_join(mac_trend_I, mac_trend_S,
+                                by = c("First_Name",
+                                       "Eye"),
+                                suffix = c("_I", "_S"))
+
+combined_trend_sectors <- inner_join(mac_trend_sectors,crnfl_trend_sectors,
+                                     by = c("First_Name","Eye"),
+                                     suffix = c("_mac","_crnfl"))
+
+combined_trend_sectors_add <- combined_trend_sectors %>% mutate(Sig_Prog_2p5_TI_TS_Imac_Smac_OR = case_when(Sig_Prog_2p5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_2p5_S_8degrees == TRUE |
+                                                                                                            Sig_Prog_2p5_TI == TRUE |
+                                                                                                            Sig_Prog_2p5_TS == TRUE ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_2p5_TIORTS_AND_ImacORSmac = case_when((Sig_Prog_2p5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_2p5_S_8degrees == TRUE) &
+                                                                                                            (Sig_Prog_2p5_TI == TRUE |
+                                                                                                            Sig_Prog_2p5_TS == TRUE) ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_5_TI_TS_Imac_Smac_OR = case_when(Sig_Prog_5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_5_S_8degrees == TRUE |
+                                                                                                            Sig_Prog_5_TI == TRUE |
+                                                                                                            Sig_Prog_5_TS == TRUE ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_5_TIORTS_AND_ImacORSmac = case_when((Sig_Prog_5_I_8degrees == TRUE |
+                                                                                                            Sig_Prog_5_S_8degrees == TRUE) &
+                                                                                                            (Sig_Prog_5_TI == TRUE |
+                                                                                                            Sig_Prog_5_TS == TRUE) ~ TRUE,
+                                                                                                            TRUE ~ FALSE),
+                                                                Sig_Prog_2p5_TI_AND_Imac_OR_Smac_AND_TS = case_when((Sig_Prog_2p5_I_8degrees == TRUE & Sig_Prog_2p5_TI == TRUE) | (Sig_Prog_2p5_S_8degrees == TRUE & Sig_Prog_2p5_TS == TRUE) ~ TRUE,
+                                                                                                                    TRUE ~ FALSE),
+                                                                Sig_Prog_5_TI_AND_Imac_OR_Smac_AND_TS = case_when((Sig_Prog_5_I_8degrees == TRUE & Sig_Prog_5_TI == TRUE) | (Sig_Prog_5_S_8degrees == TRUE & Sig_Prog_5_TS == TRUE) ~ TRUE,
+                                                                                                                    TRUE ~ FALSE))
+
+# event_IDs <- combined_event_sectors_add %>% distinct(First_Name,Eye)
+# 
+# write_csv(event_IDs, "Event_IDs.csv")
+# 
+# trend_IDs <- combined_trend_sectors_add %>% distinct(First_Name, Eye)
+# write_csv(trend_IDs, "Trend_IDs.csv")                                                            
+
+trend_summary_table_SS_sectors <- combined_trend_sectors_add  %>% group_by(MAPS_Group) %>%
+    summarize(Total_N = n(),
+              Progression_Sig_2p5_OR_allSectors = sum(Sig_Prog_2p5_TI_TS_Imac_Smac_OR),
+              Progression_Sig_5_OR_allSectors = sum(Sig_Prog_5_TI_TS_Imac_Smac_OR),
+              Progression_Sig_2p5_tiORtsANDimacORsmac = sum(Sig_Prog_2p5_TIORTS_AND_ImacORSmac),
+              Progression_Sig_5_tiORtsANDimacORsmac = sum(Sig_Prog_5_TIORTS_AND_ImacORSmac),
+              Progression_Sig_2p5_tiANDimacORsmacANDts = sum(Sig_Prog_2p5_TI_AND_Imac_OR_Smac_AND_TS),
+              Progression_Sig_5_tiANDimacORsmacANDts = sum(Sig_Prog_5_TI_AND_Imac_OR_Smac_AND_TS))
+
+
+
+# str_str_any <- combined_trend_metrics %>% filter(Metric_mac %in% c("I_8degrees","S_8degrees"),
+#                                                Metric_crnfl %in% c("TI","TS")) %>%
+#   select(1:8,11:16, 19:21)
+# 
+# str_str_any <- str_str_any %>% mutate(Sig_Prog_2p5_AND = case_when(Sig_Prog_2p5_mac == TRUE & Sig_Prog_2p5_crnfl == TRUE ~ TRUE,
+#                                                                       TRUE ~ FALSE),
+#                                   Sig_Prog_5_AND = case_when(Sig_Prog_5_mac == TRUE & Sig_Prog_5_crnfl == TRUE ~ TRUE,
+#                                                                     TRUE ~ FALSE),
+#                                   Sig_Prog_2p5_OR = case_when(Sig_Prog_2p5_mac == TRUE | Sig_Prog_2p5_crnfl == TRUE ~ TRUE,
+#                                                                      TRUE ~ FALSE),
+#                                   Sig_Prog_5_OR = case_when(Sig_Prog_5_mac == TRUE | Sig_Prog_5_crnfl == TRUE ~ TRUE,
+#                                                                    TRUE ~ FALSE))
+# 
+# trend_summary_table_s_s_hemi <- str_str_any  %>% group_by(Metric_mac, Metric_crnfl, MAPS_Group) %>%
+#     summarize(Total_N = n(),
+#               Progression_Sig_2p5_AND = sum(Sig_Prog_2p5_AND),
+#               Progression_Sig_5_AND = sum(Sig_Prog_5_AND),
+#               Progression_Sig_2p5_OR = sum(Sig_Prog_2p5_OR),
+#               Progression_Sig_5_OR = sum(Sig_Prog_5_OR))
+# 
+# 
+# 
+# combined_event_metrics <- inner_join(mac_event_metrics, crnfl_event_metrics,
+#                                      by = c("First_Name", "Eye"),
+#                                      suffix = c("_mac", "_crnfl"))
+# 
+# str_str_event <- combined_event_metrics %>% mutate(Sig_Prog_2p5_G_AND_GMac = case_when(Sig_Prog_2p5_mac == TRUE & Sig_Prog_2p5_crnfl == TRUE ~ TRUE,
+#                                                                                        TRUE ~ FALSE),
+#                                                    Sig_Prog_5_G_AND_GMac = case_when(Sig_Prog_5_mac == TRUE & Sig_Prog_5_crnfl == TRUE ~ TRUE,
+#                                                                                      TRUE ~ FALSE),
+#                                                    Sig_Prog_2p5_G_OR_GMac = case_when(Sig_Prog_2p5_mac == TRUE | Sig_Prog_2p5_crnfl == TRUE ~ TRUE,
+#                                                                                       TRUE ~ FALSE),
+#                                                    Sig_Prog_5_G_OR_GMac = case_when(Sig_Prog_5_mac == TRUE | Sig_Prog_5_crnfl == TRUE ~ TRUE,
+#                                                                                     TRUE ~ FALSE))
+# event_summary_table_s_s <- str_str_event  %>% group_by(Metric_mac, Metric_crnfl, MAPS_Group_mac) %>%
+#     summarize(Total_N = n(),
+#               Progression_Sig_2p5_AND = sum(Sig_Prog_2p5_G_AND_GMac),
+#               Progression_Sig_5_AND = sum(Sig_Prog_5_G_AND_GMac),
+#               Progression_Sig_2p5_OR = sum(Sig_Prog_2p5_G_OR_GMac),
+#               Progression_Sig_5_OR = sum(Sig_Prog_5_G_OR_GMac))
+# 
+# event_summary_table_s_s_to_present <- event_summary_table_s_s %>% filter((Metric_mac == "G_8degrees" & Metric_crnfl == "G") |
+#                                                                            (Metric_mac == "I_8degrees" & Metric_crnfl == "TI") |
+#                                                                            (Metric_mac == "I_8degrees" & Metric_crnfl == "TS") |
+#                                                                            (Metric_mac == "S_8degrees" & Metric_crnfl == "TI") |
+#                                                                            (Metric_mac == "S_8degrees" & Metric_crnfl == "TS"))
+
+```
+
+``` {r s_s_comp_table, echo = FALSE, results = 'asis'}
+
+knitr::kable(event_summary_table_s_sG,
+             format = 'pipe',
+             col.names = c("Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5% G AND Gmac",
+                           "Significant Progression at 5% G AND Gmac",
+                           "Significant Progression at 2.5% G OR Gmac",
+                           "Significant Progression at 5% G OR Gmac"),
+             align = 'ccccccc',
+             caption = "Results of Event-Based Analysis for G and Gmac")
+
+knitr::kable(trend_summary_table_s_sG,
+             format = 'pipe',
+             col.names = c("Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5% G AND Gmac",
+                           "Significant Progression at 5% G AND Gmac",
+                           "Significant Progression at 2.5% G OR Gmac",
+                           "Significant Progression at 5% G OR Gmac"),
+             align = 'ccccccc',
+             caption = "Results of Trend-Based Analysis for G and Gmac")
+
+knitr::kable(event_summary_table_SS_sectors,
+             format = 'pipe',
+             col.names = c("Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5% TI OR TS OR Imac OR Smac",
+                           "Significant Progression at 5% G TI OR TS OR Imac OR Smac",
+                           "Significant Progression at 2.5% (TI OR TS) AND (Imac OR Smac)",
+                           "Significant Progression at 5% (TI OR TS) AND (Imac OR Smac)",
+                           "Significant Progression at 2.5% (TI AND Imac) OR (TS AND Smac)",
+                           "Significant Progression at 5% (TI AND Imac) OR (TS AND Smac)"),
+             align = 'cccccccc',
+             caption = "Results of Event-Based Analysis for S and I sectors (hemifields)")
+
+knitr::kable(trend_summary_table_SS_sectors,
+             format = 'pipe',
+             col.names = c("Study Group",
+                           "Total Number",
+                           "Significant Progression at 2.5% TI OR TS OR Imac OR Smac",
+                           "Significant Progression at 5% G TI OR TS OR Imac OR Smac",
+                           "Significant Progression at 2.5% (TI OR TS) AND (Imac OR Smac)",
+                           "Significant Progression at 5% (TI OR TS) AND (Imac OR Smac)",
+                           "Significant Progression at 2.5% (TI AND Imac) OR (TS AND Smac)",
+                           "Significant Progression at 5% (TI AND Imac) OR (TS AND Smac)"),
+             align = 'cccccccc',
+             caption = "Results of Trend-Based Analysis for S and I sectors (hemifields)")
+
+```
+
+
+
+``` {r tidy_BMO, include = FALSE}
+
+bmo_tidy <- all_bmo %>% select(1:5,7,12:14,24,27:33)
+bmo_tidy$DOB <- lubridate::mdy(bmo_tidy$DOB)
+bmo_tidy$ExamDate <- lubridate::mdy(bmo_tidy$ExamDate)
+
+
+```
+
+``` {r tidy_all_tests, include = FALSE}
+
+dates_w_bmo <- bmo_tidy %>% select(Firstname, Eye,
+                                   DOB, ExamDate,
+                                   `MRW Global`)
+
+dates_bmo_onh <- full_join(dates_w_bmo,onh_tidy,
+                           by = c("Firstname" = "First_Name",
+                                  "Eye" = "Eye",
+                                  "DOB" = "DoB",
+                                  "ExamDate" = "DoT"),
+                           suffix = c("_BMO", "_ONH"))
+
+dates_bmo_onh_complete <- dates_bmo_onh %>% drop_na() %>%
+  distinct()
+  
+dates_bmo_onh_pp <- full_join(dates_bmo_onh_complete, ppScans_tidy,
+                              by = c("Firstname" = "First_Name",
+                                     "Eye" = "Eye",
+                                     "DOB" = "DoB",
+                                     "ExamDate" = "DoT"),
+                              suffix = c("_ONH", "_BMO"))
+
+dates_bmo_onh_pp_complete <- dates_bmo_onh_pp %>% drop_na() %>%
+  distinct()
+                              
+
+
+```
+
+
+

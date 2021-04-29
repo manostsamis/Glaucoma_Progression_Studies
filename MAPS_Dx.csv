@@ -1,0 +1,255 @@
+First_Name,Study_Eye,Eye,Diagnosis,Dx
+COL005,OD,R,glaucoma,G
+COL082,OS,L,glaucoma,G
+COL090,OD,R,glaucoma,G
+COL091,OS,L,glaucoma,G
+COL095,OS,L,glaucoma,G
+COL099,OD,R,glaucoma,G
+COL253,OD,R,glaucoma,G
+COL194,OS,L,glaucoma (COAG),G
+COL106,OD,R,glaucoma (JOAG),G
+COL185,OD,R,glaucoma (JOAG),G
+COL200,OD,R,glaucoma (JOAG),G
+COL246,OD,R,glaucoma (JOAG),G
+COL088,OD,R,glaucoma (JPOAG),G
+COL056,OD,R,glaucoma (LTG),G
+COL222,OD,R,glaucoma (moderate),G
+COL234,OS,L,glaucoma (moderate),G
+COL248,OS,L,glaucoma (moderate),G
+COL249,OS,L,glaucoma (moderate),G
+COL250,OD,R,glaucoma (moderate),G
+COL251,OS,L,glaucoma (moderate),G
+COL252,OS,L,glaucoma (moderate),G
+COL254,OD,R,glaucoma (moderate),G
+COL003,OD,R,glaucoma (NTG),G
+COL010,OD,R,glaucoma (NTG),G
+COL051,OD,R,glaucoma (NTG),G
+COL104,OS,L,glaucoma (NTG),G
+COL109,OS,L,glaucoma (NTG),G
+COL170,OD,R,glaucoma (NTG),G
+COL181,OD,R,glaucoma (NTG),G
+COL182,OD,R,glaucoma (NTG),G
+COL144,,,glaucoma (OAG vs NTG),G
+COL001,OS,L,glaucoma (OAG),G
+COL002,OD,R,glaucoma (OAG),G
+COL008,OD,R,glaucoma (OAG),G
+COL009,OS,L,glaucoma (OAG),G
+COL011,OD,R,glaucoma (OAG),G
+COL012,OD,R,glaucoma (OAG),G
+COL013,OD,R,glaucoma (OAG),G
+COL015,OD,R,glaucoma (OAG),G
+COL016,OS,L,glaucoma (OAG),G
+COL017,OS,L,glaucoma (OAG),G
+COL018,OS,L,glaucoma (OAG),G
+COL020,OS,L,glaucoma (OAG),G
+COL022,OD,R,glaucoma (OAG),G
+COL024,OS,L,glaucoma (OAG),G
+COL025,OD,R,glaucoma (OAG),G
+COL028,OS,L,glaucoma (OAG),G
+COL032,OD,R,glaucoma (OAG),G
+COL034,OD,R,glaucoma (OAG),G
+COL042,OS,L,glaucoma (OAG),G
+COL043,OD,R,glaucoma (OAG),G
+COL044,OD,R,glaucoma (OAG),G
+COL066,OD,R,glaucoma (OAG),G
+COL087,OS,L,glaucoma (OAG),G
+COL100,OD,R,glaucoma (OAG),G
+COL105,OD,R,glaucoma (OAG),G
+COL110,OD,R,glaucoma (OAG),G
+COL114,OD,R,glaucoma (OAG),G
+COL116,OS,L,glaucoma (OAG),G
+COL121,OS,L,glaucoma (OAG),G
+COL128,OD,R,glaucoma (OAG),G
+COL129,OS,L,glaucoma (OAG),G
+COL137,OS,L,glaucoma (OAG),G
+COL143,OS,L,glaucoma (OAG),G
+COL151,OS,L,glaucoma (OAG),G
+COL152,OS,L,glaucoma (OAG),G
+COL154,OS,L,glaucoma (OAG),G
+COL156,OS,L,glaucoma (OAG),G
+COL157,OD,R,glaucoma (OAG),G
+COL158,OS,L,glaucoma (OAG),G
+COL159,OS,L,glaucoma (OAG),G
+COL161,OS,L,glaucoma (OAG),G
+COL162,OS,L,glaucoma (OAG),G
+COL163,OS,L,glaucoma (OAG),G
+COL164,OS,L,glaucoma (OAG),G
+COL165,OD,R,glaucoma (OAG),G
+COL167,OS,L,glaucoma (OAG),G
+COL171,OD,R,glaucoma (OAG),G
+COL172,OS,L,glaucoma (OAG),G
+COL173,OD,R,glaucoma (OAG),G
+COL174,OS,L,glaucoma (OAG),G
+COL175,OD,R,glaucoma (OAG),G
+COL176,OS,L,glaucoma (OAG),G
+COL178,OS,L,glaucoma (OAG),G
+COL179,OS,L,glaucoma (OAG),G
+COL180,OS,L,glaucoma (OAG),G
+COL183,OS,L,glaucoma (OAG),G
+COL186,OD,R,glaucoma (OAG),G
+COL187,OS,L,glaucoma (OAG),G
+COL188,OS,L,glaucoma (OAG),G
+COL189,OS,L,glaucoma (OAG),G
+COL191,OD,R,glaucoma (OAG),G
+COL192,OS,L,glaucoma (OAG),G
+COL193,OD,R,glaucoma (OAG),G
+COL195,OD,R,glaucoma (OAG),G
+COL196,OD,R,glaucoma (OAG),G
+COL197,OD,R,glaucoma (OAG),G
+COL199,OS,L,glaucoma (OAG),G
+COL201,OD,R,glaucoma (OAG),G
+COL202,OD,R,glaucoma (OAG),G
+COL203,OS,L,glaucoma (OAG),G
+COL204,OD,R,glaucoma (OAG),G
+COL207,OS,L,glaucoma (OAG),G
+COL208,OS,L,glaucoma (OAG),G
+COL211,OS,L,glaucoma (OAG),G
+COL212,OD,R,glaucoma (OAG),G
+COL213,OS,L,glaucoma (OAG),G
+COL214,OS,L,glaucoma (OAG),G
+COL215,OD,R,glaucoma (OAG),G
+COL216,OS,L,glaucoma (OAG),G
+COL217,,L,glaucoma (OAG),G
+COL218,OS,L,glaucoma (OAG),G
+COL219,OS,L,glaucoma (OAG),G
+COL220,OS,L,glaucoma (OAG),G
+COL221,OD,R,glaucoma (OAG),G
+COL223,OS,L,glaucoma (OAG),G
+COL229,OD,R,glaucoma (OAG),G
+COL230,OD,R,glaucoma (OAG),G
+COL233,OS,L,glaucoma (OAG),G
+COL235,OS,L,glaucoma (OAG),G
+COL237,,,glaucoma (OAG),G
+COL239,OS,L,glaucoma (OAG),G
+COL241,OD,R,glaucoma (OAG),G
+COL242,OD,R,glaucoma (OAG),G
+COL243,OS,L,glaucoma (OAG),G
+COL244,OD,R,glaucoma (OAG),G
+COL245,OD,R,glaucoma (OAG),G
+COL247,,,glaucoma (OAG),G
+COL149,OS,L,glaucoma (OAG/ACG),G
+COL115,OS,L,glaucoma (OAT vs NTG),G
+COL113,OS,L,glaucoma (PG),G
+COL184,,,glaucoma (PG),G
+COL092,OS,L,glaucoma (POAG),G
+COL093,OD,R,glaucoma (POAG),G
+COL096,OD,R,glaucoma (POAG),G
+COL097,OS,L,glaucoma (POAG),G
+COL098,OS,L,glaucoma (POAG),G
+COL107,OD,R,glaucoma (POAG),G
+COL119,OS,L,glaucoma (POAG),G
+COL166,OS,L,glaucoma (PXG),G
+COL205,OS,L,glaucoma (PXG),G
+COL227,OD,R,glaucoma (PXG),G
+COL231,OD,R,glaucoma (PXG),G
+COL057,OD,R,glaucoma (XFG),G
+COL083,OD,R,glaucoma (XFG),G
+COL084,OD,R,glaucoma (XFG),G
+COL101,OD,R,glaucoma (XFG),G
+COL111,OD,R,glaucoma (XFG),G
+COL112,OD,R,glaucoma (XFG),G
+COL117,OS,L,glaucoma (XFG),G
+COL118,OD,R,glaucoma (XFG),G
+COL120,OD,R,glaucoma (XFG),G
+COL177,OS,L,glaucoma (XFG),G
+COL169,OD,R,glaucoma (XG),G
+COL190,OS,L,glaucoma (XG),G
+COL209,OD,R,glaucoma suspect,G
+COL224,OD,R,glaucoma(moderate),G
+COL225,OS,L,glaucoma(moderate),G
+COL236,OS,L,glaucoma(moderate),G
+COL238,,,glaucoma(moderate),G
+COL122,OS,L,glaucoma(OAG),G
+COL127,OD,R,glaucoma(OAG),G
+COL071,OD,R,"high myope, normal",G
+COL141,OS,L,High Myopia,G
+COL155,OS,L,High Myopia,G
+COL168,OS,L,high myopia,G
+COL206,OS,L,high myopia,G
+COL019,,,ineligible (advanced NTG),G
+COL038,OD,R,ineligible (suspect),G
+COL139,OD,R,normal,HC
+COL070,,,normal,HC
+COL027,OD,R,normal,HC
+COL040,OD,R,normal,HC
+COL041,OD,R,normal,HC
+COL047,OD,R,normal,HC
+COL049,OS,L,normal,HC
+COL050,OD,R,normal,HC
+COL052,OD,R,normal,HC
+COL053,OS,L,normal,HC
+COL054,OS,L,normal,HC
+COL055,OS,L,normal,HC
+COL058,OS,L,normal,HC
+COL059,OS,L,normal,HC
+COL060,OD,R,normal,HC
+COL061,OD,R,normal,HC
+COL062,OS,L,normal,HC
+COL063,OD,R,normal,HC
+COL064,OS,L,normal,HC
+COL065,OS,L,normal,HC
+COL067,OS,L,normal,HC
+COL068,OS,L,normal,HC
+COL069,OS,L,normal,HC
+COL072,OD,R,normal,HC
+COL073,OD,R,normal,HC
+COL074,OD,R,normal,HC
+COL075,OD,R,normal,HC
+COL076,OD,R,normal,HC
+COL077,OD,R,normal,HC
+COL079,,,normal,HC
+COL080,OS,L,normal,HC
+COL081,OD,R,normal,HC
+COL085,OD,R,normal,HC
+COL086,OS,L,normal,HC
+COL094,OS,L,normal,HC
+COL102,OS,L,normal,HC
+COL103,OS,L,normal,HC
+COL123,OD,R,normal,HC
+COL124,OD,R,normal,HC
+COL125,OS,L,normal,HC
+COL126,OD,R,normal,HC
+COL130,OS,L,normal,HC
+COL131,OS,L,normal,HC
+COL132,OD,R,normal,HC
+COL133,OS,L,normal,HC
+COL134,OD,R,normal,HC
+COL135,OD,R,normal,HC
+COL136,OD,R,normal,HC
+COL138,OD,R,normal,HC
+COL140,OD,R,normal,HC
+COL145,OD,R,normal,HC
+COL146,OD,R,normal,HC
+COL147,OS,L,normal,HC
+COL148,OD,R,normal,HC
+COL150,OD,R,normal,HC
+COL153,OD,R,normal,HC
+COL226,OS,L,normal,HC
+COL228,OS,L,normal,HC
+COL030,OD,R,normal,HC
+COL031,OS,L,normal,HC
+COL210,OD,R,preperimetric glaucoma (OAG),G
+COL007,OD,R,suspect,G
+COL023,OS,L,suspect,G
+COL026,OD,R,suspect,G
+COL033,OS,L,suspect,G
+COL035,OS,L,suspect,G
+COL037,OD,R,suspect,G
+COL045,OS,L,suspect,G
+COL046,OS,L,suspect,G
+COL078,OS,L,suspect,G
+COL089,OS,L,suspect,G
+COL108,OD,R,suspect,G
+COL142,OD,R,suspect,G
+COL039,OD,R,suspect (low risk),G
+COL006,OS,L,"suspect (OAG OD, GS OS)",G
+COL198,OS,L,suspect (OAG),G
+COL021,OD,R,suspect (OHT vs. OAG),G
+COL048,OD,R,suspect (OHT vs. OAG),G
+COL014,OS,L,"suspect (OHT, XFS OS)",G
+COL029,OD,R,"suspect (PDS, no GON)",G
+COL004,OD,R,"suspect (XFG OS, XFS OD)",G
+COL036,OS,L,suspect (XFS OU),G
+COL240,OS,L,suspect/OHT,G
+COL160,OS,L,,
+COL232,OS,L,,
